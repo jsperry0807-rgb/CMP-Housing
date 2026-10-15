@@ -2,7 +2,7 @@ import type { Response } from "express";
 import { env, isProduction } from "../env.js";
 import { signAuthToken } from "./jwt.js";
 
-export const AUTH_COOKIE = "klins_token";
+export const AUTH_COOKIE = "ects_housing_token";
 
 const cookieOptions = {
   httpOnly: true,
