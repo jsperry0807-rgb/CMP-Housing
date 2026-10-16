@@ -1,14 +1,32 @@
 import { useEffect, useState } from "react";
 
 export type RouteName =
-  "home" | "login" | "signup" | "dashboard" | "browse" | "listing";
+  | "home"
+  | "login"
+  | "signup"
+  | "dashboard"
+  | "my-listings"
+  | "listing-form"
+  | "moderation"
+  | "browse"
+  | "listing";
 
 export interface RouteState {
   name: RouteName;
-  /** Set when name is "listing". */
+  /** The listing slug, for "listing" and editing via "listing-form". */
   slug?: string;
   /** Everything after the "?" in the hash, e.g. "?city=Berlin". */
   query: URLSearchParams;
+}
+
+/** Routes that live behind the signed-in dashboard. */
+export function isDashboardRoute(name: RouteName): boolean {
+  return (
+    name === "dashboard" ||
+    name === "my-listings" ||
+    name === "listing-form" ||
+    name === "moderation"
+  );
 }
 
 export function parseRoute(hash: string): RouteState {
@@ -16,19 +34,31 @@ export function parseRoute(hash: string): RouteState {
   const [path = "", search = ""] = raw.split("?");
   const segments = path.split("/").filter(Boolean);
   const query = new URLSearchParams(search);
-  const [first, second] = segments;
+  const [first, second, third, fourth] = segments;
 
   switch (first) {
     case "login":
       return { name: "login", query };
     case "signup":
       return { name: "signup", query };
-    case "dashboard":
-      return { name: "dashboard", query };
     case "listings":
       return second
         ? { name: "listing", slug: decodeURIComponent(second), query }
         : { name: "browse", query };
+    case "dashboard":
+      if (second === "moderation") return { name: "moderation", query };
+      if (second === "listings") {
+        if (!third) return { name: "my-listings", query };
+        if (third === "new") return { name: "listing-form", query };
+        if (fourth === "edit") {
+          return {
+            name: "listing-form",
+            slug: decodeURIComponent(third),
+            query,
+          };
+        }
+      }
+      return { name: "dashboard", query };
     default:
       return { name: "home", query };
   }

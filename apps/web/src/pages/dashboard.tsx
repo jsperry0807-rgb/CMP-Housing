@@ -1,87 +1,260 @@
-import { ArrowLeft, Folder, LayoutDashboard, Settings } from "lucide-react";
-import Logo from "@/components/logo";
-import SignOutButton from "@/components/sign-out-button";
-import UserChip from "@/components/user-chip";
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
-import { Separator } from "@/components/ui/separator";
+  ArrowRight,
+  Building2,
+  CheckCircle2,
+  Clock,
+  PlusCircle,
+  ShieldCheck,
+  type LucideIcon,
+} from "lucide-react";
+import type { ReactNode } from "react";
+import DashboardLayout from "@/components/dashboard-layout";
+import StatusBadge from "@/components/status-badge";
+import { buttonVariants } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
+import {
+  adminApi,
+  formatPrice,
+  listingsApi,
+  type BrowseResult,
+} from "@/lib/listings";
+import { useAsyncData } from "@/lib/use-async-data";
 import { cn } from "@/lib/utils";
 
-const navItems = [
-  { label: "Overview", icon: LayoutDashboard, active: true },
-  { label: "Projects", icon: Folder, active: false },
-  { label: "Settings", icon: Settings, active: false },
-];
+function StatCard({
+  label,
+  value,
+  icon: Icon,
+  href,
+  loading,
+}: {
+  label: string;
+  value: number;
+  icon: LucideIcon;
+  href?: string;
+  loading: boolean;
+}) {
+  const content = (
+    <Card
+      className={cn(
+        "h-full transition-colors",
+        href && "hover:ring-foreground/25",
+      )}
+    >
+      <CardContent className="flex items-center gap-4">
+        <div className="grid size-10 shrink-0 place-items-center rounded-lg bg-muted text-muted-foreground">
+          <Icon className="size-5" />
+        </div>
+
+        <div className="min-w-0">
+          <p className="text-xs text-muted-foreground">{label}</p>
+          {loading ? (
+            <Skeleton className="mt-1 h-7 w-10" />
+          ) : (
+            <p className="font-heading text-2xl font-semibold tabular-nums">
+              {value}
+            </p>
+          )}
+        </div>
+      </CardContent>
+    </Card>
+  );
+
+  return href ? <a href={`#${href}`}>{content}</a> : content;
+}
+
+function SectionCard({
+  title,
+  action,
+  children,
+}: {
+  title: string;
+  action?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Card className="gap-3">
+      <CardHeader className="flex-row items-center justify-between">
+        <CardTitle>{title}</CardTitle>
+        {action}
+      </CardHeader>
+      <CardContent>{children}</CardContent>
+    </Card>
+  );
+}
 
 export default function Dashboard() {
   const { user } = useAuth();
+  const isAdmin = user?.role === "admin";
+
+  const mine = useAsyncData(() => listingsApi.mine(), []);
+  const pendingQueue = useAsyncData<BrowseResult | null>(
+    () =>
+      isAdmin
+        ? adminApi.queue({ status: "pending", limit: 1 })
+        : Promise.resolve(null),
+    [isAdmin],
+  );
+
   if (!user) return null;
 
+  const counts = mine.data?.counts;
+  const recent = mine.data?.items.slice(0, 3) ?? [];
+
   return (
-    <div className="flex min-h-svh">
-      <aside className="hidden w-60 shrink-0 flex-col border-r bg-sidebar text-sidebar-foreground lg:flex">
-        <div className="flex h-16 items-center border-b border-sidebar-border px-4">
-          <Logo />
-        </div>
-
-        <nav className="flex flex-1 flex-col gap-1 p-3">
-          {navItems.map(({ label, icon: Icon, active }) => (
-            <span
-              key={label}
-              aria-current={active ? "page" : undefined}
-              className={cn(
-                "flex items-center gap-2 rounded-lg px-3 py-2 text-sm",
-                active
-                  ? "bg-sidebar-accent font-medium text-sidebar-accent-foreground"
-                  : "text-sidebar-foreground/70",
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-            </span>
-          ))}
-        </nav>
-
-        <Separator />
-        <div className="p-3">
-          <a
-            href="#/"
-            className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/70 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
-          >
-            <ArrowLeft className="size-4 shrink-0" />
-            Back to site
-          </a>
-        </div>
-      </aside>
-
-      <div className="flex min-w-0 flex-1 flex-col">
-        <header className="flex h-16 shrink-0 items-center justify-between gap-4 border-b px-6">
-          <h1 className="font-heading text-base font-medium">Overview</h1>
-
-          <div className="flex items-center gap-2">
-            <UserChip user={user} className="hidden sm:flex" />
-            <SignOutButton />
-          </div>
-        </header>
-
-        <main className="flex-1 p-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>Dashboard content goes here</CardTitle>
-              <CardDescription>Signed in as {user.email}</CardDescription>
-            </CardHeader>
-            <CardContent className="text-muted-foreground">
-              Add your widgets, tables, and charts to this area.
-            </CardContent>
-          </Card>
-        </main>
+    <DashboardLayout
+      title={`Welcome back, ${user.name.split(" ")[0]}`}
+      description="Manage your listings and keep an eye on what needs review."
+      actions={
+        <a
+          href="#/dashboard/listings/new"
+          className={buttonVariants({ size: "lg" })}
+        >
+          <PlusCircle />
+          New listing
+        </a>
+      }
+    >
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        <StatCard
+          label="Total listings"
+          value={counts?.total ?? 0}
+          icon={Building2}
+          href="/dashboard/listings"
+          loading={mine.loading}
+        />
+        <StatCard
+          label="Live"
+          value={counts?.active ?? 0}
+          icon={CheckCircle2}
+          href="/dashboard/listings"
+          loading={mine.loading}
+        />
+        <StatCard
+          label="Awaiting review"
+          value={counts?.pending ?? 0}
+          icon={Clock}
+          href="/dashboard/listings"
+          loading={mine.loading}
+        />
       </div>
-    </div>
+
+      <div className="mt-6 grid gap-6 lg:grid-cols-3">
+        <div className="lg:col-span-2">
+          <SectionCard
+            title="Your recent listings"
+            action={
+              <a
+                href="#/dashboard/listings"
+                className={buttonVariants({ variant: "ghost", size: "sm" })}
+              >
+                View all
+                <ArrowRight />
+              </a>
+            }
+          >
+            {mine.loading ? (
+              <div className="flex flex-col gap-3">
+                {[0, 1].map((index) => (
+                  <Skeleton key={index} className="h-14 w-full" />
+                ))}
+              </div>
+            ) : recent.length === 0 ? (
+              <div className="py-6 text-center">
+                <p className="text-sm text-muted-foreground">
+                  You haven't posted a listing yet.
+                </p>
+                <a
+                  href="#/dashboard/listings/new"
+                  className={cn(
+                    buttonVariants({ variant: "outline", size: "sm" }),
+                    "mt-3",
+                  )}
+                >
+                  <PlusCircle />
+                  Create your first listing
+                </a>
+              </div>
+            ) : (
+              <ul className="flex flex-col gap-3">
+                {recent.map((listing) => (
+                  <li key={listing._id} className="flex items-center gap-3">
+                    <div className="min-w-0 flex-1">
+                      <a
+                        href={`#/dashboard/listings/${listing.slug}/edit`}
+                        className="block truncate text-sm font-medium hover:underline"
+                      >
+                        {listing.title}
+                      </a>
+                      <p className="text-xs text-muted-foreground">
+                        {formatPrice(listing)} / month · {listing.address.city}
+                      </p>
+                    </div>
+                    <StatusBadge status={listing.status} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+        </div>
+
+        <div className="flex flex-col gap-6">
+          {isAdmin && (
+            <SectionCard title="Moderation">
+              {pendingQueue.loading ? (
+                <Skeleton className="h-6 w-44" />
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  <span className="font-heading text-2xl font-semibold text-foreground tabular-nums">
+                    {pendingQueue.data?.total ?? 0}
+                  </span>{" "}
+                  listing
+                  {(pendingQueue.data?.total ?? 0) === 1 ? "" : "s"} awaiting
+                  review.
+                </p>
+              )}
+
+              <a
+                href="#/dashboard/moderation"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "sm" }),
+                  "mt-3",
+                )}
+              >
+                <ShieldCheck />
+                Open queue
+              </a>
+            </SectionCard>
+          )}
+
+          <SectionCard title="Quick actions">
+            <div className="flex flex-col gap-2">
+              <a
+                href="#/listings"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "justify-start",
+                )}
+              >
+                <Building2 />
+                Browse the marketplace
+              </a>
+              <a
+                href="#/"
+                className={cn(
+                  buttonVariants({ variant: "outline", size: "lg" }),
+                  "justify-start",
+                )}
+              >
+                <ArrowRight />
+                Back to homepage
+              </a>
+            </div>
+          </SectionCard>
+        </div>
+      </div>
+    </DashboardLayout>
   );
 }

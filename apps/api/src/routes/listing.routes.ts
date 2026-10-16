@@ -102,13 +102,16 @@ function canManage(listing: { owner: unknown }, user: UserDocument): boolean {
   return user.role === "admin" || ownerIdOf(listing) === String(user._id);
 }
 
-/** Adds a short suffix until the slug is free. */
-async function uniqueSlug(title: string): Promise<string> {
+/** Adds a short suffix until the slug is free, ignoring `excludeId`'s own slug. */
+async function uniqueSlug(title: string, excludeId?: string): Promise<string> {
   const base = slugify(title) || "listing";
   let slug = base;
 
+  const filter = (value: string) =>
+    excludeId ? { slug: value, _id: { $ne: excludeId } } : { slug: value };
+
   for (let attempt = 0; attempt < 5; attempt += 1) {
-    const taken = await Listing.exists({ slug });
+    const taken = await Listing.exists(filter(slug));
     if (!taken) return slug;
     slug = `${base}-${Math.random().toString(36).slice(2, 6)}`;
   }
@@ -183,10 +186,9 @@ listingRouter.get("/featured", async (_req, res) => {
 });
 
 listingRouter.get("/:slug", optionalAuth, async (req, res) => {
-  const listing = await Listing.findOne({ slug: String(req.params.slug) }).populate(
-    "owner",
-    "name",
-  );
+  const listing = await Listing.findOne({
+    slug: String(req.params.slug),
+  }).populate("owner", "name");
 
   if (!listing) throw new HttpError(404, "Listing not found");
 
@@ -239,8 +241,14 @@ listingRouter.patch("/:id", requireAuth, async (req, res) => {
   const changes = Object.fromEntries(
     Object.entries(input).filter(([, value]) => value !== undefined),
   );
+
+  const previousTitle = listing.title;
   Object.assign(listing, changes);
-  if (input.title) listing.slug = await uniqueSlug(input.title);
+
+  // Keep the URL stable unless the title actually changes.
+  if (input.title && input.title !== previousTitle) {
+    listing.slug = await uniqueSlug(input.title, String(listing._id));
+  }
 
   const saved = await listing.save();
   res.json({ listing: saved });

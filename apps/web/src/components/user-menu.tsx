@@ -1,4 +1,4 @@
-import { LayoutDashboard, LogOut } from "lucide-react";
+import { CirclePlus, LayoutDashboard, LogOut } from "lucide-react";
 import { useState } from "react";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
@@ -61,6 +61,10 @@ export default function UserMenu({ user }: { user: ApiUser }) {
           <DropdownMenuItem onClick={() => navigate("/dashboard")}>
             <LayoutDashboard />
             Dashboard
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/dashboard/listings/new")}>
+            <CirclePlus />
+            New listing
           </DropdownMenuItem>
         </DropdownMenuGroup>
         <DropdownMenuSeparator />

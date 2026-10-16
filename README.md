@@ -108,21 +108,46 @@ The web app is a single page app driven by the URL hash, so every view is
 linkable and the browser's back button works. Browse filters live in the query
 string, which makes a filtered list easy to share.
 
-| Hash                  | Page                                               |
-| --------------------- | -------------------------------------------------- |
-| `#/`                  | Home: hero, search and featured listings           |
-| `#/listings`          | Browse; see the query parameters below             |
-| `#/listings/:slug`    | Listing detail: gallery, specs, amenities, address |
-| `#/login`, `#/signup` | Auth                                               |
-| `#/dashboard`         | Signed-in area (requires a session)                |
+| Hash                              | Page                                                |
+| --------------------------------- | --------------------------------------------------- |
+| `#/`                              | Home: hero, search and featured listings            |
+| `#/listings`                      | Browse; see the query parameters below              |
+| `#/listings/:slug`                | Listing detail: gallery, specs, amenities, address  |
+| `#/login`, `#/signup`             | Auth                                                |
+| `#/dashboard`                     | Signed-in overview: your counts and recent listings |
+| `#/dashboard/listings`            | Your listings, in every status                      |
+| `#/dashboard/listings/new`        | Create a listing                                    |
+| `#/dashboard/listings/:slug/edit` | Edit one of your listings                           |
+| `#/dashboard/moderation`          | Admin-only moderation queue (approve / reject)      |
 
 Browse reads `q`, `type`, `maxPrice`, `bedrooms`, `furnished`, `sort` and
 `page` from the query string, so `#/listings?q=Berlin&maxPrice=750` is a valid,
 shareable URL.
 
+Everything under `#/dashboard` requires a session, and `#/dashboard/moderation`
+additionally requires the `admin` role — `App.tsx` redirects visitors who do not
+qualify.
+
+### Posting and moderation
+
+Any signed-in user can post a listing. New listings start as `pending` (or
+`draft`, if you save without submitting) and only appear in the public browse
+list once an admin approves them:
+
+```
+draft ──▶ pending ──▶ active ──▶ rented
+             │            ▲
+             └─ rejected ─┘   (owner resubmits)
+```
+
+Owners can edit their own listings, move them between `draft`, `pending` and
+`rented`, and delete them. Only an admin can set `active` or `rejected`.
+Editing an approved listing leaves it live, and its slug stays stable unless the
+title changes.
+
 Routing lives in `apps/web/src/lib/router.ts` (`parseRoute`, `navigate`,
-`useRoute`). To add a page, add a branch to `parseRoute` and a case in
-`App.tsx`.
+`useRoute`, `isDashboardRoute`). To add a page, add a branch to `parseRoute` and
+a case in `App.tsx`.
 
 ## UI components
 
@@ -132,7 +157,7 @@ and are yours to edit. Add more with:
 
 ```sh
 cd apps/web
-pnpm dlx shadcn@latest add dialog table tabs
+pnpm dlx shadcn@latest add table tabs switch
 ```
 
 `apps/web/components.json` holds the aliases and style (`@/*` → `src/*`,

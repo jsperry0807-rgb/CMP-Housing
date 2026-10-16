@@ -16,6 +16,8 @@ export interface ListingAddress {
 export interface ListingOwner {
   id: string;
   name: string;
+  /** Present in the admin queue, which populates name + email. */
+  email?: string;
 }
 
 export interface Listing {
@@ -82,7 +84,7 @@ export interface ListingInput {
   status?: "draft" | "pending" | "rented";
 }
 
-function toSearchParams(params: BrowseParams): string {
+function toSearchParams(params: object): string {
   const search = new URLSearchParams();
 
   for (const [key, value] of Object.entries(params)) {
@@ -125,6 +127,44 @@ export const listingsApi = {
       counts: { total: number; pending: number; active: number };
     }>("/api/me/listings"),
 };
+
+export interface AdminQueueParams {
+  status?: ListingStatus;
+  page?: number;
+  limit?: number;
+}
+
+export const adminApi = {
+  queue: (params: AdminQueueParams = {}) =>
+    request<BrowseResult>(`/api/admin/listings${toSearchParams(params)}`),
+
+  approve: (id: string) =>
+    request<{ listing: Listing }>(`/api/admin/listings/${id}/approve`, {
+      method: "POST",
+    }),
+
+  reject: (id: string, reason: string) =>
+    request<{ listing: Listing }>(`/api/admin/listings/${id}/reject`, {
+      method: "POST",
+      body: JSON.stringify({ reason }),
+    }),
+};
+
+/** Amenities offered as one-tap chips in the listing form. */
+export const AMENITY_PRESETS = [
+  "Wi-Fi",
+  "Heating",
+  "Kitchen",
+  "Washing machine",
+  "Dishwasher",
+  "Balcony",
+  "Elevator",
+  "Parking",
+  "Garden",
+  "Basement storage",
+  "Pets allowed",
+  "Wheelchair accessible",
+];
 
 export const LISTING_TYPES: ListingType[] = [
   "room",
