@@ -102,6 +102,28 @@ you create yourself is left alone. All demo accounts use the password
 Listing images come from [picsum.photos](https://picsum.photos), so a network
 connection is needed for them to load.
 
+## Pages
+
+The web app is a single page app driven by the URL hash, so every view is
+linkable and the browser's back button works. Browse filters live in the query
+string, which makes a filtered list easy to share.
+
+| Hash                  | Page                                               |
+| --------------------- | -------------------------------------------------- |
+| `#/`                  | Home: hero, search and featured listings           |
+| `#/listings`          | Browse; see the query parameters below             |
+| `#/listings/:slug`    | Listing detail: gallery, specs, amenities, address |
+| `#/login`, `#/signup` | Auth                                               |
+| `#/dashboard`         | Signed-in area (requires a session)                |
+
+Browse reads `q`, `type`, `maxPrice`, `bedrooms`, `furnished`, `sort` and
+`page` from the query string, so `#/listings?q=Berlin&maxPrice=750` is a valid,
+shareable URL.
+
+Routing lives in `apps/web/src/lib/router.ts` (`parseRoute`, `navigate`,
+`useRoute`). To add a page, add a branch to `parseRoute` and a case in
+`App.tsx`.
+
 ## UI components
 
 The web app uses [shadcn/ui](https://ui.shadcn.com) on top of
@@ -110,7 +132,7 @@ and are yours to edit. Add more with:
 
 ```sh
 cd apps/web
-pnpm dlx shadcn@latest add dialog dropdown-menu
+pnpm dlx shadcn@latest add dialog table tabs
 ```
 
 `apps/web/components.json` holds the aliases and style (`@/*` → `src/*`,

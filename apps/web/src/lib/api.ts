@@ -1,7 +1,10 @@
+export type ApiRole = "user" | "admin";
+
 export interface ApiUser {
   id: string;
   name: string;
   email: string;
+  role: ApiRole;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,7 +59,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
 
   try {
