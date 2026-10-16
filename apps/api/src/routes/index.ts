@@ -1,6 +1,9 @@
 import { Router } from "express";
 import { isDatabaseConnected } from "../db.js";
+import { adminRouter } from "./admin.routes.js";
 import { authRouter } from "./auth.routes.js";
+import { listingRouter } from "./listing.routes.js";
+import { meRouter } from "./me.routes.js";
 
 export const apiRouter = Router();
 
@@ -13,5 +16,8 @@ apiRouter.get("/health", (_req, res) => {
 });
 
 apiRouter.use("/auth", authRouter);
+apiRouter.use("/listings", listingRouter);
+apiRouter.use("/me", meRouter);
+apiRouter.use("/admin", adminRouter);
 
 // Add future routers here, e.g. apiRouter.use("/projects", projectsRouter);

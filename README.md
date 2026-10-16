@@ -56,6 +56,52 @@ Sessions are a signed JWT in an `httpOnly` cookie; `sameSite=lax`, and `secure`
 in production. Passwords are hashed with bcrypt in a Mongoose `pre("save")`
 hook and the `password` field is `select: false`, so it never leaves the API.
 
+## Listings API
+
+Public reads only ever return `active` listings. `pending`, `rejected`, `draft`,
+and `rented` listings are visible to their owner and to admins.
+
+| Method   | Route                             | Who       | Description                                     |
+| -------- | --------------------------------- | --------- | ----------------------------------------------- |
+| `GET`    | `/api/listings`                   | public    | Browse, with filters + pagination (see below)   |
+| `GET`    | `/api/listings/featured`          | public    | The three newest active listings                |
+| `GET`    | `/api/listings/:slug`             | public    | One listing by slug                             |
+| `POST`   | `/api/listings`                   | signed in | Create a listing (lands in `pending`)           |
+| `PATCH`  | `/api/listings/:id`               | owner     | Update your listing                             |
+| `DELETE` | `/api/listings/:id`               | owner     | Delete your listing                             |
+| `GET`    | `/api/me/listings`                | signed in | Your listings, any status, with counts          |
+| `GET`    | `/api/admin/listings`             | admin     | Moderation queue (`?status=pending` by default) |
+| `POST`   | `/api/admin/listings/:id/approve` | admin     | Publish a listing                               |
+| `POST`   | `/api/admin/listings/:id/reject`  | admin     | Reject it, with `{ "reason": "…" }`             |
+
+Browse query parameters: `q`, `city`, `type`, `minPrice`, `maxPrice`, `bedrooms`,
+`furnished`, `sort` (`newest` \| `price-asc` \| `price-desc`), `page`, `limit`.
+The response is `{ items, total, page, pageSize, pages }`.
+
+`pricePerMonth` is a whole number of currency units (e.g. `750` = €750), and
+`currency` defaults to `EUR`.
+
+## Demo data
+
+```sh
+pnpm --filter api db:seed              # 21 listings + 4 demo accounts
+pnpm --filter api promote you@example.com   # grant the admin role
+```
+
+The seed script only replaces listings owned by the demo accounts, so anything
+you create yourself is left alone. All demo accounts use the password
+`password123`:
+
+| Email                 | Role  |
+| --------------------- | ----- |
+| `mara@example.com`    | user  |
+| `jonas@example.com`   | user  |
+| `admin@example.com`   | admin |
+| `student@example.com` | user  |
+
+Listing images come from [picsum.photos](https://picsum.photos), so a network
+connection is needed for them to load.
+
 ## UI components
 
 The web app uses [shadcn/ui](https://ui.shadcn.com) on top of

@@ -1,15 +1,14 @@
-import {
-  model,
-  Schema,
-  type HydratedDocument,
-  type Model,
-} from "mongoose";
+import { model, Schema, type HydratedDocument, type Model } from "mongoose";
 import { hashPassword, verifyPassword } from "../lib/password.js";
+
+export const USER_ROLES = ["user", "admin"] as const;
+export type UserRole = (typeof USER_ROLES)[number];
 
 export interface IUser {
   name: string;
   email: string;
   password: string;
+  role: UserRole;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -41,6 +40,12 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
       required: true,
       minlength: 8,
       select: false,
+    },
+    role: {
+      type: String,
+      enum: USER_ROLES,
+      default: "user",
+      required: true,
     },
   },
   {
