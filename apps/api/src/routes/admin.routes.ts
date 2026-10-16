@@ -39,7 +39,8 @@ adminRouter.get("/listings", async (req, res) => {
       .sort({ createdAt: -1 })
       .skip((page - 1) * limit)
       .limit(limit)
-      .populate("owner", "name email"),
+      .populate("owner", "name email")
+      .populate("team", "name logo"),
   ]);
 
   res.json({
@@ -58,7 +59,10 @@ adminRouter.post("/listings/:id/approve", async (req, res) => {
     id,
     { status: "active", rejectionReason: undefined },
     { new: true },
-  );
+  ).populate([
+    { path: "owner", select: "name email" },
+    { path: "team", select: "name logo" },
+  ]);
   if (!listing) throw new HttpError(404, "Listing not found");
 
   res.json({ listing });
@@ -76,7 +80,10 @@ adminRouter.post("/listings/:id/reject", async (req, res) => {
     id,
     { status: "rejected", rejectionReason: parsed.data.reason },
     { new: true },
-  );
+  ).populate([
+    { path: "owner", select: "name email" },
+    { path: "team", select: "name logo" },
+  ]);
   if (!listing) throw new HttpError(404, "Listing not found");
 
   res.json({ listing });

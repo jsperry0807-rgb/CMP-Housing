@@ -5,9 +5,8 @@ import { HttpError } from "../lib/http-error.js";
 import { slugify } from "../lib/slug.js";
 import { optionalAuth, requireAuth } from "../middleware/auth.js";
 import {
-  LISTING_STATUSES,
-  LISTING_TYPES,
   Listing,
+  LISTING_STATUSES,
   PUBLIC_LISTING_STATUS,
   type IListing,
 } from "../models/listing.js";
@@ -15,32 +14,53 @@ import type { UserDocument } from "../models/user.js";
 
 export const listingRouter = Router();
 
-// Owners may set these on their own listing; only an admin may approve.
-const OWNER_SETTABLE_STATUSES = ["draft", "pending", "rented"] as const;
+// Owners may set these on their own listing; only a teacher (admin) may approve.
+const OWNER_SETTABLE_STATUSES = ["draft", "pending"] as const;
 const OWNER_SETTABLE = new Set<string>(OWNER_SETTABLE_STATUSES);
 
+/** Team details shown wherever a listing is presented. */
+const TEAM_FIELDS = "name logo";
+/** Submitter details shown wherever a listing is presented. */
+const OWNER_FIELDS = "name email";
+
+const entrySchema = z.object({
+  label: z.string().trim().min(1).max(60),
+  value: z.string().trim().min(1).max(200),
+});
+
 const addressSchema = z.object({
-  street: z.string().trim().max(160).optional(),
+  line1: z.string().trim().max(160).optional(),
   city: z.string().trim().min(1).max(80),
+  state: z.string().trim().max(40).optional(),
   postalCode: z.string().trim().max(20).optional(),
-  country: z.string().trim().max(80).optional(),
+});
+
+const mapsSchema = z.object({
+  location: z.string().trim().max(1000).optional(),
+  schools: z.string().trim().max(1000).optional(),
+  shops: z.string().trim().max(1000).optional(),
 });
 
 const listingInputSchema = z.object({
-  title: z.string().trim().min(5).max(120),
-  description: z.string().trim().min(20).max(4000),
-  pricePerMonth: z.coerce.number().int().min(0).max(1_000_000),
-  currency: z.string().trim().length(3).default("EUR"),
-  type: z.enum(LISTING_TYPES),
-  bedrooms: z.coerce.number().int().min(0).max(50).default(0),
-  bathrooms: z.coerce.number().int().min(0).max(50).default(0),
-  areaM2: z.coerce.number().min(0).max(100_000).optional(),
-  floor: z.coerce.number().int().min(-10).max(200).optional(),
-  furnished: z.boolean().default(false),
-  amenities: z.array(z.string().trim().min(1).max(40)).max(30).default([]),
+  name: z.string().trim().min(3).max(120),
+  description: z.string().trim().min(20).max(6000),
+  totalCost: z.coerce.number().int().min(0).max(1_000_000_000),
+  beds: z.coerce.number().int().min(0).max(50).default(0),
+  baths: z.coerce.number().min(0).max(50).default(0),
+  sqft: z.coerce.number().int().min(0).max(1_000_000).default(0),
+  year: z.coerce.number().int().min(1800).max(2100).optional(),
+  propertyTax: z.coerce.number().min(0).max(10_000_000).optional(),
+  assessment: z.coerce.number().min(0).max(1_000_000_000).optional(),
   address: addressSchema,
-  images: z.array(z.string().trim().min(1).max(500)).max(12).default([]),
-  availableFrom: z.coerce.date().optional(),
+  maps: mapsSchema.default({ location: undefined }),
+  highlights: z.array(entrySchema).max(20).default([]),
+  interior: z.array(entrySchema).max(30).default([]),
+  roomTypes: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
+  images: z.array(z.string().trim().min(1).max(500)).max(15).default([]),
+  similar: z
+    .array(z.string().regex(/^[0-9a-fA-F]{24}$/))
+    .max(12)
+    .optional(),
   status: z.enum(OWNER_SETTABLE_STATUSES).default("pending"),
 });
 
@@ -52,12 +72,12 @@ const listingUpdateSchema = listingInputSchema
 const browseQuerySchema = z.object({
   q: z.string().trim().max(120).optional(),
   city: z.string().trim().max(80).optional(),
-  type: z.enum(LISTING_TYPES).optional(),
-  minPrice: z.coerce.number().min(0).optional(),
-  maxPrice: z.coerce.number().min(0).optional(),
-  bedrooms: z.coerce.number().int().min(0).optional(),
-  furnished: z.enum(["true", "false"]).optional(),
-  sort: z.enum(["newest", "price-asc", "price-desc"]).default("newest"),
+  minCost: z.coerce.number().min(0).optional(),
+  maxCost: z.coerce.number().min(0).optional(),
+  beds: z.coerce.number().int().min(0).optional(),
+  sort: z
+    .enum(["newest", "cost-asc", "cost-desc", "sqft-desc"])
+    .default("newest"),
   page: z.coerce.number().int().min(1).default(1),
   limit: z.coerce.number().int().min(1).max(50).default(12),
 });
@@ -67,9 +87,14 @@ const SORTS: Record<
   Record<string, 1 | -1>
 > = {
   newest: { createdAt: -1 },
-  "price-asc": { pricePerMonth: 1 },
-  "price-desc": { pricePerMonth: -1 },
+  "cost-asc": { totalCost: 1 },
+  "cost-desc": { totalCost: -1 },
+  "sqft-desc": { sqft: -1 },
 };
+
+/** Fields returned for the "similar houses" cards on the detail page. */
+const SIMILAR_FIELDS =
+  "name slug images totalCost beds baths sqft address owner team";
 
 /** Stops user input from being interpreted as a regex. */
 function escapeRegExp(value: string): string {
@@ -98,13 +123,29 @@ function ownerIdOf(listing: { owner: unknown }): string {
   return String(owner);
 }
 
-function canManage(listing: { owner: unknown }, user: UserDocument): boolean {
-  return user.role === "admin" || ownerIdOf(listing) === String(user._id);
+function teamIdOf(listing: { team?: unknown }): string | null {
+  const team = listing.team as { _id?: unknown } | null | undefined;
+  if (team && typeof team === "object" && team._id) {
+    return String(team._id);
+  }
+  if (team) return String(team);
+  return null;
+}
+
+function canManage(
+  listing: { owner: unknown; team?: unknown },
+  user: UserDocument,
+): boolean {
+  if (user.role === "admin") return true;
+  const teamId = teamIdOf(listing);
+  const userTeam = user.team ? String(user.team) : null;
+  if (teamId && userTeam && teamId === userTeam) return true;
+  return ownerIdOf(listing) === String(user._id);
 }
 
 /** Adds a short suffix until the slug is free, ignoring `excludeId`'s own slug. */
-async function uniqueSlug(title: string, excludeId?: string): Promise<string> {
-  const base = slugify(title) || "listing";
+async function uniqueSlug(name: string, excludeId?: string): Promise<string> {
+  const base = slugify(name) || "listing";
   let slug = base;
 
   const filter = (value: string) =>
@@ -127,44 +168,33 @@ listingRouter.get("/", async (req, res) => {
     throw new HttpError(400, "Invalid query", parsed.error.issues);
   }
 
-  const {
-    q,
-    city,
-    type,
-    minPrice,
-    maxPrice,
-    bedrooms,
-    furnished,
-    sort,
-    page,
-    limit,
-  } = parsed.data;
+  const { q, city, minCost, maxCost, beds, sort, page, limit } = parsed.data;
 
   const filter: QueryFilter<IListing> = { status: PUBLIC_LISTING_STATUS };
 
   if (q) {
     const rx = new RegExp(escapeRegExp(q), "i");
-    filter.$or = [{ title: rx }, { description: rx }, { "address.city": rx }];
+    filter.$or = [{ name: rx }, { description: rx }, { "address.city": rx }];
   }
   if (city) {
     filter["address.city"] = new RegExp(`^${escapeRegExp(city)}$`, "i");
   }
-  if (type) filter.type = type;
-  if (minPrice !== undefined || maxPrice !== undefined) {
-    filter.pricePerMonth = {
-      ...(minPrice !== undefined ? { $gte: minPrice } : {}),
-      ...(maxPrice !== undefined ? { $lte: maxPrice } : {}),
+  if (minCost !== undefined || maxCost !== undefined) {
+    filter.totalCost = {
+      ...(minCost !== undefined ? { $gte: minCost } : {}),
+      ...(maxCost !== undefined ? { $lte: maxCost } : {}),
     };
   }
-  if (bedrooms !== undefined) filter.bedrooms = { $gte: bedrooms };
-  if (furnished !== undefined) filter.furnished = furnished === "true";
+  if (beds !== undefined) filter.beds = { $gte: beds };
 
   const [total, items] = await Promise.all([
     Listing.countDocuments(filter),
     Listing.find(filter)
       .sort(SORTS[sort])
       .skip((page - 1) * limit)
-      .limit(limit),
+      .limit(limit)
+      .populate("owner", OWNER_FIELDS)
+      .populate("team", TEAM_FIELDS),
   ]);
 
   res.json({
@@ -180,7 +210,9 @@ listingRouter.get("/", async (req, res) => {
 listingRouter.get("/featured", async (_req, res) => {
   const items = await Listing.find({ status: PUBLIC_LISTING_STATUS })
     .sort({ createdAt: -1 })
-    .limit(3);
+    .limit(3)
+    .populate("owner", OWNER_FIELDS)
+    .populate("team", TEAM_FIELDS);
 
   res.json({ items });
 });
@@ -188,11 +220,21 @@ listingRouter.get("/featured", async (_req, res) => {
 listingRouter.get("/:slug", optionalAuth, async (req, res) => {
   const listing = await Listing.findOne({
     slug: String(req.params.slug),
-  }).populate("owner", "name");
+  })
+    .populate("owner", OWNER_FIELDS)
+    .populate("team", TEAM_FIELDS)
+    .populate({
+      path: "similar",
+      select: SIMILAR_FIELDS,
+      populate: [
+        { path: "owner", select: OWNER_FIELDS },
+        { path: "team", select: TEAM_FIELDS },
+      ],
+    });
 
   if (!listing) throw new HttpError(404, "Listing not found");
 
-  // Non-public listings are only visible to their owner and admins.
+  // Non-public listings are only visible to their owner and teachers.
   if (listing.status !== PUBLIC_LISTING_STATUS) {
     const allowed = req.user && canManage(listing, req.user);
     if (!allowed) throw new HttpError(404, "Listing not found");
@@ -207,13 +249,25 @@ listingRouter.post("/", requireAuth, async (req, res) => {
   const user = req.user!;
   const input = parseBody(listingInputSchema, req.body);
 
+  if (!user.team) {
+    throw new HttpError(
+      400,
+      "You need to be on a team before submitting a design",
+    );
+  }
+
   const listing = await Listing.create({
     ...input,
-    slug: await uniqueSlug(input.title),
+    slug: await uniqueSlug(input.name),
     owner: user._id,
+    team: user.team,
   });
 
-  res.status(201).json({ listing });
+  const created = await listing.save();
+  const populated = await Listing.findById(created._id)
+    .populate("owner", OWNER_FIELDS)
+    .populate("team", TEAM_FIELDS);
+  res.status(201).json({ listing: populated ?? created });
 });
 
 listingRouter.patch("/:id", requireAuth, async (req, res) => {
@@ -234,7 +288,7 @@ listingRouter.patch("/:id", requireAuth, async (req, res) => {
     user.role !== "admin" &&
     !OWNER_SETTABLE.has(input.status)
   ) {
-    throw new HttpError(403, "Only an admin can approve a listing");
+    throw new HttpError(403, "Only a teacher can approve a listing");
   }
 
   // Drop undefined keys so an omitted field never blanks the stored value.
@@ -242,16 +296,19 @@ listingRouter.patch("/:id", requireAuth, async (req, res) => {
     Object.entries(input).filter(([, value]) => value !== undefined),
   );
 
-  const previousTitle = listing.title;
+  const previousName = listing.name;
   Object.assign(listing, changes);
 
-  // Keep the URL stable unless the title actually changes.
-  if (input.title && input.title !== previousTitle) {
-    listing.slug = await uniqueSlug(input.title, String(listing._id));
+  // Keep the URL stable unless the name actually changes.
+  if (input.name && input.name !== previousName) {
+    listing.slug = await uniqueSlug(input.name, String(listing._id));
   }
 
   const saved = await listing.save();
-  res.json({ listing: saved });
+  const populated = await Listing.findById(saved._id)
+    .populate("owner", OWNER_FIELDS)
+    .populate("team", TEAM_FIELDS);
+  res.json({ listing: populated ?? saved });
 });
 
 listingRouter.delete("/:id", requireAuth, async (req, res) => {

@@ -9,3 +9,10 @@ dist-ssr
 .cache
 server/dist
 public/dist
+
+# User uploads (team logos, house photos) — recreated at runtime.
+apps/api/uploads/
+
+# Drop last year's photo folders in here to seed them (see seed-images/README.md).
+apps/api/seed-images/*
+!apps/api/seed-images/README.md

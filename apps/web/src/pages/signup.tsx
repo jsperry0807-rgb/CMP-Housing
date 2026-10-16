@@ -10,9 +10,10 @@ import { navigate } from "@/lib/router";
 import {
   compactErrors,
   MIN_PASSWORD_LENGTH,
-  validateEmail,
+  SCHOOL_EMAIL_DOMAIN,
   validateName,
   validatePassword,
+  validateSchoolEmail,
 } from "@/lib/validation";
 
 export default function Signup() {
@@ -30,21 +31,31 @@ export default function Signup() {
 
     const nextErrors = compactErrors({
       name: validateName(name),
-      email: validateEmail(email),
+      email: validateSchoolEmail(email),
       password: validatePassword(password),
     });
 
     setErrors(nextErrors);
-    setFormError(null);
     if (Object.keys(nextErrors).length > 0) return;
 
+    setFormError(null);
     setSubmitting(true);
+
     try {
-      await signup({ name: name.trim(), email: email.trim(), password });
+      await signup({ name, email, password });
       navigate("/dashboard");
     } catch (error) {
       if (error instanceof ApiError) {
-        setErrors(error.fieldErrors);
+        const fieldErrors = error.fieldErrors;
+        if (Object.keys(fieldErrors).length > 0) {
+          setErrors(
+            compactErrors({
+              name: fieldErrors.name,
+              email: fieldErrors.email,
+              password: fieldErrors.password,
+            }),
+          );
+        }
         setFormError(error.message);
       } else {
         setFormError("Something went wrong. Please try again.");
@@ -56,30 +67,30 @@ export default function Signup() {
 
   return (
     <AuthLayout
-      title="Create your account"
-      description="Start using ECTS Housing in a minute."
+      title="Create your student account"
+      description="Sign up with your school email, then your teacher will add you to a team before you submit a house design."
       footer={
         <>
           Already have an account?{" "}
           <a
             href="#/login"
-            className="font-medium text-foreground underline-offset-4 hover:underline"
+            className="font-medium text-foreground underline underline-offset-4"
           >
             Sign in
           </a>
         </>
       }
     >
-      <form onSubmit={handleSubmit} className="grid gap-4" noValidate>
+      <form onSubmit={handleSubmit} className="flex flex-col gap-4" noValidate>
         {formError && <FormError message={formError} />}
 
         <FormField
-          label="Name"
+          label="Your name"
           name="name"
           value={name}
           onChange={setName}
           autoComplete="name"
-          placeholder="Ada Lovelace"
+          placeholder="Alex Carter"
           error={errors.name}
           autoFocus
         />
@@ -91,7 +102,8 @@ export default function Signup() {
           value={email}
           onChange={setEmail}
           autoComplete="email"
-          placeholder="you@example.com"
+          placeholder={`you@${SCHOOL_EMAIL_DOMAIN}`}
+          hint={`Use your @${SCHOOL_EMAIL_DOMAIN} school email address`}
           error={errors.email}
         />
 
@@ -102,28 +114,14 @@ export default function Signup() {
           value={password}
           onChange={setPassword}
           autoComplete="new-password"
-          placeholder="Create a password"
+          placeholder={`At least ${MIN_PASSWORD_LENGTH} characters`}
           error={errors.password}
-          hint={`At least ${MIN_PASSWORD_LENGTH} characters.`}
         />
 
-        <Button
-          type="submit"
-          size="lg"
-          disabled={submitting}
-          className="mt-1 w-full"
-        >
-          {submitting ? (
-            <>
-              <LoaderCircle className="animate-spin" />
-              Creating account…
-            </>
-          ) : (
-            <>
-              Create account
-              <ArrowRight />
-            </>
-          )}
+        <Button type="submit" size="lg" disabled={submitting}>
+          {submitting ? <LoaderCircle className="animate-spin" /> : null}
+          {submitting ? "Creating account…" : "Create account"}
+          {!submitting && <ArrowRight />}
         </Button>
       </form>
     </AuthLayout>

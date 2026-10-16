@@ -1,4 +1,10 @@
-import { ArrowRight, Building2, Search, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  Home as HomeIcon,
+  PencilRuler,
+  Search,
+  ShieldCheck,
+} from "lucide-react";
 import { useState, type FormEvent } from "react";
 import EmptyState from "@/components/empty-state";
 import ListingCard from "@/components/listing-card";
@@ -19,19 +25,18 @@ import { buildPath, navigate } from "@/lib/router";
 import { useAsyncData } from "@/lib/use-async-data";
 import { cn } from "@/lib/utils";
 
-const PRICE_ITEMS: Record<string, string> = {
-  any: "Any price",
-  "300": "Up to €300",
-  "500": "Up to €500",
-  "750": "Up to €750",
-  "1000": "Up to €1,000",
-  "1500": "Up to €1,500",
+const BUDGET_ITEMS: Record<string, string> = {
+  any: "Any budget",
+  "500000": "Up to $500,000",
+  "600000": "Up to $600,000",
+  "700000": "Up to $700,000",
+  "800000": "Up to $800,000",
 };
 
 export default function Home() {
   const { user } = useAuth();
-  const [city, setCity] = useState("");
-  const [maxPrice, setMaxPrice] = useState("any");
+  const [keyword, setKeyword] = useState("");
+  const [maxCost, setMaxCost] = useState("any");
 
   const { data, loading, error } = useAsyncData(
     () => listingsApi.featured(),
@@ -42,8 +47,8 @@ export default function Home() {
     event.preventDefault();
     navigate(
       buildPath("/listings", {
-        q: city.trim(),
-        maxPrice: maxPrice === "any" ? "" : maxPrice,
+        q: keyword.trim(),
+        maxCost: maxCost === "any" ? "" : maxCost,
       }),
     );
   }
@@ -54,40 +59,41 @@ export default function Home() {
         <div className="mx-auto w-full max-w-6xl px-6 py-16 sm:py-24">
           <div className="max-w-2xl">
             <h1 className="font-heading text-4xl font-semibold tracking-tight text-balance sm:text-5xl">
-              Student housing, without the guesswork
+              Houses designed by ECTS students
             </h1>
             <p className="mt-4 text-lg text-muted-foreground">
-              Browse rooms, studios and shared flats near your campus. Every
-              listing is reviewed before it goes live.
+              Every year the class is given a house to design from the ground
+              up. Browse their finished designs — floor plans, costs and photo
+              galleries included.
             </p>
           </div>
 
           <form
             onSubmit={search}
             className="mt-8 flex flex-col gap-3 sm:flex-row"
-            aria-label="Search listings"
+            aria-label="Search designs"
           >
             <div className="relative min-w-0 flex-1">
               <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
               <Input
-                value={city}
-                onChange={(event) => setCity(event.target.value)}
-                placeholder="City, e.g. Berlin"
-                aria-label="City"
+                value={keyword}
+                onChange={(event) => setKeyword(event.target.value)}
+                placeholder="Search by team, house name or city"
+                aria-label="Search designs"
                 className="h-11! pl-9"
               />
             </div>
 
             <Select
-              items={PRICE_ITEMS}
-              value={maxPrice}
-              onValueChange={(value) => setMaxPrice(String(value))}
+              items={BUDGET_ITEMS}
+              value={maxCost}
+              onValueChange={(value) => setMaxCost(String(value))}
             >
-              <SelectTrigger className="h-11! w-full sm:w-48">
+              <SelectTrigger className="h-11! w-full sm:w-52">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                {Object.entries(PRICE_ITEMS).map(([value, label]) => (
+                {Object.entries(BUDGET_ITEMS).map(([value, label]) => (
                   <SelectItem key={value} value={value}>
                     {label}
                   </SelectItem>
@@ -103,11 +109,11 @@ export default function Home() {
           <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm text-muted-foreground">
             <span className="flex items-center gap-2">
               <ShieldCheck className="size-4" />
-              Reviewed listings
+              Reviewed by the teacher
             </span>
             <span className="flex items-center gap-2">
-              <Building2 className="size-4" />
-              Rooms, studios &amp; flats
+              <PencilRuler className="size-4" />
+              Designed by student teams
             </span>
           </div>
         </div>
@@ -117,10 +123,10 @@ export default function Home() {
         <div className="flex flex-wrap items-end justify-between gap-4">
           <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight">
-              Featured listings
+              Featured designs
             </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              The newest places added to ECTS Housing.
+              The most recent houses added to ECTS Housing.
             </p>
           </div>
 
@@ -148,17 +154,17 @@ export default function Home() {
 
           {error && (
             <EmptyState
-              icon={Building2}
-              title="Could not load listings"
+              icon={HomeIcon}
+              title="Could not load designs"
               description={error}
             />
           )}
 
           {data && data.items.length === 0 && (
             <EmptyState
-              icon={Building2}
-              title="No listings yet"
-              description="Once listings are approved they will show up here."
+              icon={HomeIcon}
+              title="No designs yet"
+              description="Once a design is approved by the teacher it will show up here."
             />
           )}
 
@@ -176,18 +182,32 @@ export default function Home() {
         <div className="mx-auto grid w-full max-w-6xl gap-6 px-6 py-14 md:grid-cols-2 md:items-center">
           <div>
             <h2 className="font-heading text-2xl font-semibold tracking-tight">
-              Have a place to rent out?
+              Designed a house this year?
             </h2>
             <p className="mt-2 text-muted-foreground">
-              Create a listing in a couple of minutes. Our team reviews it, then
-              it goes live to students browsing ECTS Housing.
+              Sign up with your team, add your photos and details, then submit
+              it. Your teacher reviews it before it goes live on ECTS Housing.
             </p>
             <div className="mt-6 flex flex-wrap gap-3">
+              {!user && (
+                <a
+                  href="#/signup"
+                  className={cn(buttonVariants({ size: "lg" }))}
+                >
+                  Create your team account
+                  <ArrowRight />
+                </a>
+              )}
               <a
-                href={user ? "#/dashboard" : "#/signup"}
-                className={cn(buttonVariants({ size: "lg" }))}
+                href={user ? "#/dashboard" : "#/login"}
+                className={cn(
+                  buttonVariants({
+                    variant: user ? "default" : "outline",
+                    size: "lg",
+                  }),
+                )}
               >
-                {user ? "Go to dashboard" : "List your place"}
+                {user ? "Go to dashboard" : "Sign in"}
                 <ArrowRight />
               </a>
             </div>
@@ -203,19 +223,19 @@ export default function Home() {
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium text-foreground">
                     1
                   </span>
-                  Create an account and describe your place.
+                  Sign up and name your team (add a logo if you have one).
                 </li>
                 <li className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium text-foreground">
                     2
                   </span>
-                  We review the listing before it is published.
+                  Add your design: cost, size, photos, maps and details.
                 </li>
                 <li className="flex gap-3">
                   <span className="grid size-6 shrink-0 place-items-center rounded-full bg-muted text-xs font-medium text-foreground">
                     3
                   </span>
-                  It appears in browse results with photos and full details.
+                  Your teacher approves it and it appears here for everyone.
                 </li>
               </ol>
             </CardContent>

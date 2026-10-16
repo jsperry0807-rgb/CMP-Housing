@@ -1,47 +1,86 @@
 import { request } from "./api";
 
-export type ListingType = "room" | "studio" | "apartment" | "house";
-export type ListingStatus =
-  "draft" | "pending" | "active" | "rejected" | "rented";
-
-export type SortOption = "newest" | "price-asc" | "price-desc";
+export type ListingStatus = "draft" | "pending" | "active" | "rejected";
+export type SortOption = "newest" | "cost-asc" | "cost-desc" | "sqft-desc";
 
 export interface ListingAddress {
-  street?: string;
+  line1?: string;
   city: string;
+  state?: string;
   postalCode?: string;
-  country?: string;
 }
 
+/** A free-form "label: value" row (highlights, interior details). */
+export interface ListingEntry {
+  label: string;
+  value: string;
+}
+
+export interface ListingMaps {
+  location?: string;
+  schools?: string;
+  shops?: string;
+}
+
+/** The student who submitted a design (credited as "designed by"). */
 export interface ListingOwner {
   id: string;
   name: string;
-  /** Present in the admin queue, which populates name + email. */
+  /** Present where the API populates the account's contact details. */
   email?: string;
+}
+
+/** The team credited with a design. */
+export interface ListingTeam {
+  id?: string;
+  name: string;
+  logo?: string;
+}
+
+/** The fields needed to render a listing card. */
+export interface ListingSummary {
+  _id: string;
+  name: string;
+  slug: string;
+  images?: string[];
+  totalCost: number;
+  beds?: number;
+  baths?: number;
+  sqft?: number;
+  address?: { city?: string; state?: string };
+}
+
+export interface CardListing extends ListingSummary {
+  owner?: string | ListingOwner;
+  team?: string | ListingTeam;
 }
 
 export interface Listing {
   _id: string;
-  title: string;
+  name: string;
   slug: string;
-  description: string;
-  /** Whole currency units per month, e.g. 750. */
-  pricePerMonth: number;
-  currency: string;
-  type: ListingType;
-  bedrooms: number;
-  bathrooms: number;
-  areaM2?: number;
-  floor?: number;
-  furnished: boolean;
-  amenities: string[];
   address: ListingAddress;
+  totalCost: number;
+  beds: number;
+  /** Can be fractional, e.g. 3.5 or 3.75. */
+  baths: number;
+  sqft: number;
+  description: string;
+  year?: number;
+  propertyTax?: number;
+  assessment?: number;
+  maps?: ListingMaps;
+  highlights: ListingEntry[];
+  interior: ListingEntry[];
+  roomTypes: string[];
   images: string[];
-  availableFrom?: string;
+  /** An id normally, or a summary object once the API populates it. */
+  similar?: Array<string | ListingSummary>;
   status: ListingStatus;
   rejectionReason?: string;
-  /** An id normally, or `{ id, name }` once the API populates it. */
   owner: string | ListingOwner;
+  /** An id normally, or the team once the API populates it. */
+  team?: string | ListingTeam;
   createdAt: string;
   updatedAt: string;
 }
@@ -49,11 +88,9 @@ export interface Listing {
 export interface BrowseParams {
   q?: string;
   city?: string;
-  type?: ListingType;
-  minPrice?: number;
-  maxPrice?: number;
-  bedrooms?: number;
-  furnished?: boolean;
+  minCost?: number;
+  maxCost?: number;
+  beds?: number;
   sort?: SortOption;
   page?: number;
   limit?: number;
@@ -68,20 +105,22 @@ export interface BrowseResult {
 }
 
 export interface ListingInput {
-  title: string;
+  name: string;
   description: string;
-  pricePerMonth: number;
-  type: ListingType;
-  bedrooms: number;
-  bathrooms: number;
-  areaM2?: number;
-  floor?: number;
-  furnished: boolean;
-  amenities: string[];
+  totalCost: number;
+  beds: number;
+  baths: number;
+  sqft: number;
+  year?: number;
+  propertyTax?: number;
+  assessment?: number;
   address: ListingAddress;
+  maps: ListingMaps;
+  highlights: ListingEntry[];
+  interior: ListingEntry[];
+  roomTypes: string[];
   images: string[];
-  availableFrom?: string;
-  status?: "draft" | "pending" | "rented";
+  status?: "draft" | "pending";
 }
 
 function toSearchParams(params: object): string {
@@ -128,6 +167,29 @@ export const listingsApi = {
     }>("/api/me/listings"),
 };
 
+export interface UploadedImage {
+  url: string;
+  name: string;
+  size: number;
+}
+
+export const uploadApi = {
+  /** Uploads up to 15 image files in one multipart request. */
+  images: (files: File[]) => {
+    const body = new FormData();
+    for (const file of files) body.append("images", file);
+    return request<{ files: UploadedImage[] }>("/api/uploads", {
+      method: "POST",
+      body,
+    });
+  },
+
+  remove: (name: string) =>
+    request<void>(`/api/uploads/${encodeURIComponent(name)}`, {
+      method: "DELETE",
+    }),
+};
+
 export interface AdminQueueParams {
   status?: ListingStatus;
   page?: number;
@@ -150,64 +212,72 @@ export const adminApi = {
     }),
 };
 
-/** Amenities offered as one-tap chips in the listing form. */
-export const AMENITY_PRESETS = [
-  "Wi-Fi",
-  "Heating",
-  "Kitchen",
-  "Washing machine",
-  "Dishwasher",
-  "Balcony",
-  "Elevator",
-  "Parking",
-  "Garden",
-  "Basement storage",
-  "Pets allowed",
-  "Wheelchair accessible",
-];
-
-export const LISTING_TYPES: ListingType[] = [
-  "room",
-  "studio",
-  "apartment",
-  "house",
-];
-
-export const LISTING_TYPE_LABELS: Record<ListingType, string> = {
-  room: "Room",
-  studio: "Studio",
-  apartment: "Apartment",
-  house: "House",
-};
-
 export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   draft: "Draft",
   pending: "Pending review",
   active: "Live",
   rejected: "Rejected",
-  rented: "Rented",
 };
 
 export const SORT_LABELS: Record<SortOption, string> = {
   newest: "Newest first",
-  "price-asc": "Price: low to high",
-  "price-desc": "Price: high to low",
+  "cost-asc": "Cost: low to high",
+  "cost-desc": "Cost: high to low",
+  "sqft-desc": "Largest first",
 };
 
-export function ownerName(listing: Listing): string | null {
-  return typeof listing.owner === "object" && listing.owner !== null
-    ? listing.owner.name
-    : null;
+export interface OwnerTeam {
+  name: string;
+  logo?: string;
+  email?: string;
+  member?: string;
 }
 
-export function formatPrice(
-  listing: Pick<Listing, "pricePerMonth" | "currency">,
-) {
-  return new Intl.NumberFormat("en-IE", {
+/**
+ * The team credited with a design: the team itself where the API populated it,
+ * otherwise the submitting student. Null when nothing is populated yet.
+ */
+export function ownerTeam(listing: {
+  owner?: string | ListingOwner;
+  team?: string | ListingTeam;
+}): OwnerTeam | null {
+  const owner = typeof listing.owner === "object" ? listing.owner : undefined;
+  const team = typeof listing.team === "object" ? listing.team : undefined;
+
+  if (!team && !owner) return null;
+
+  return {
+    name: team?.name || owner?.name || "Unknown team",
+    logo: team?.logo,
+    email: owner?.email,
+    member: owner?.name,
+  };
+}
+
+/** The populated "similar houses", ignoring any raw ids. */
+export function similarListings(listing: Listing): ListingSummary[] {
+  return (listing.similar ?? []).filter(
+    (item): item is ListingSummary => typeof item === "object" && item !== null,
+  );
+}
+
+export function formatCost(value: number): string {
+  return new Intl.NumberFormat("en-US", {
     style: "currency",
-    currency: listing.currency || "EUR",
+    currency: "USD",
     maximumFractionDigits: 0,
-  }).format(listing.pricePerMonth);
+  }).format(value);
+}
+
+export function formatNumber(value: number): string {
+  return new Intl.NumberFormat("en-US").format(value);
+}
+
+/** 3 → "3", 3.5 → "3.5". Keeps fractional bathrooms readable. */
+export function formatBaths(value: number): string {
+  return Number.isInteger(value)
+    ? String(value)
+    : value.toFixed(2).replace(/0$/, "");
 }
 
 export function formatDate(value: string): string {

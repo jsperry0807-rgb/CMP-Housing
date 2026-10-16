@@ -1,22 +1,24 @@
 import {
   ArrowRight,
-  Building2,
   CheckCircle2,
   Clock,
+  Home,
   PlusCircle,
   ShieldCheck,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
 import DashboardLayout from "@/components/dashboard-layout";
 import StatusBadge from "@/components/status-badge";
+import TeamAvatar from "@/components/team-avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useAuth } from "@/lib/auth";
 import {
   adminApi,
-  formatPrice,
+  formatCost,
   listingsApi,
   type BrowseResult,
 } from "@/lib/listings";
@@ -100,28 +102,29 @@ export default function Dashboard() {
 
   if (!user) return null;
 
+  const team = user.team?.name?.trim() || user.name;
   const counts = mine.data?.counts;
   const recent = mine.data?.items.slice(0, 3) ?? [];
 
   return (
     <DashboardLayout
-      title={`Welcome back, ${user.name.split(" ")[0]}`}
-      description="Manage your listings and keep an eye on what needs review."
+      title={`Welcome back, ${team}`}
+      description="Manage your team's designs and keep an eye on what needs review."
       actions={
         <a
           href="#/dashboard/listings/new"
           className={buttonVariants({ size: "lg" })}
         >
           <PlusCircle />
-          New listing
+          New design
         </a>
       }
     >
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <StatCard
-          label="Total listings"
+          label="Total designs"
           value={counts?.total ?? 0}
-          icon={Building2}
+          icon={Home}
           href="/dashboard/listings"
           loading={mine.loading}
         />
@@ -144,7 +147,7 @@ export default function Dashboard() {
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
         <div className="lg:col-span-2">
           <SectionCard
-            title="Your recent listings"
+            title="Recent designs"
             action={
               <a
                 href="#/dashboard/listings"
@@ -164,7 +167,7 @@ export default function Dashboard() {
             ) : recent.length === 0 ? (
               <div className="py-6 text-center">
                 <p className="text-sm text-muted-foreground">
-                  You haven't posted a listing yet.
+                  You haven't submitted a design yet.
                 </p>
                 <a
                   href="#/dashboard/listings/new"
@@ -174,7 +177,7 @@ export default function Dashboard() {
                   )}
                 >
                   <PlusCircle />
-                  Create your first listing
+                  Create your first design
                 </a>
               </div>
             ) : (
@@ -186,10 +189,11 @@ export default function Dashboard() {
                         href={`#/dashboard/listings/${listing.slug}/edit`}
                         className="block truncate text-sm font-medium hover:underline"
                       >
-                        {listing.title}
+                        {listing.name}
                       </a>
                       <p className="text-xs text-muted-foreground">
-                        {formatPrice(listing)} / month · {listing.address.city}
+                        {formatCost(listing.totalCost)} ·{" "}
+                        {listing.address?.city ?? "—"}
                       </p>
                     </div>
                     <StatusBadge status={listing.status} />
@@ -201,6 +205,31 @@ export default function Dashboard() {
         </div>
 
         <div className="flex flex-col gap-6">
+          <SectionCard title="Your team">
+            <div className="flex items-center gap-3">
+              <TeamAvatar name={team} logo={user.team?.logo} size="lg" />
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium">
+                  {user.team?.name ?? "No team yet"}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.name} · {user.email}
+                </p>
+              </div>
+            </div>
+
+            <a
+              href={isAdmin ? "#/dashboard/teams" : "#/dashboard/team"}
+              className={cn(
+                buttonVariants({ variant: "outline", size: "sm" }),
+                "mt-3",
+              )}
+            >
+              <UsersRound />
+              {isAdmin ? "Manage teams" : "View team"}
+            </a>
+          </SectionCard>
+
           {isAdmin && (
             <SectionCard title="Moderation">
               {pendingQueue.loading ? (
@@ -210,7 +239,7 @@ export default function Dashboard() {
                   <span className="font-heading text-2xl font-semibold text-foreground tabular-nums">
                     {pendingQueue.data?.total ?? 0}
                   </span>{" "}
-                  listing
+                  design
                   {(pendingQueue.data?.total ?? 0) === 1 ? "" : "s"} awaiting
                   review.
                 </p>
@@ -238,11 +267,11 @@ export default function Dashboard() {
                   "justify-start",
                 )}
               >
-                <Building2 />
-                Browse the marketplace
+                <Home />
+                Browse all designs
               </a>
               <a
-                href="#/"
+                href="#/home"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "justify-start",

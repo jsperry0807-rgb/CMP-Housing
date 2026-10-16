@@ -7,22 +7,19 @@ import {
 } from "mongoose";
 import { slugify } from "../lib/slug.js";
 
-export const LISTING_TYPES = ["room", "studio", "apartment", "house"] as const;
-export type ListingType = (typeof LISTING_TYPES)[number];
-
 /**
- * draft   — owner is still writing it
- * pending — submitted, waiting for an admin
+ * A "listing" is one house design submitted by a student team.
+ *
+ * draft   — the team is still working on it
+ * pending — submitted, waiting for the teacher
  * active  — approved, visible to the public
- * rejected— an admin turned it down (see rejectionReason)
- * rented  — taken, hidden from the public browse list
+ * rejected— the teacher sent it back (see rejectionReason)
  */
 export const LISTING_STATUSES = [
   "draft",
   "pending",
   "active",
   "rejected",
-  "rented",
 ] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
@@ -30,32 +27,53 @@ export type ListingStatus = (typeof LISTING_STATUSES)[number];
 export const PUBLIC_LISTING_STATUS: ListingStatus = "active";
 
 export interface IListingAddress {
-  street?: string;
+  line1?: string;
   city: string;
+  state?: string;
   postalCode?: string;
-  country?: string;
+}
+
+/** A free-form "label: value" row (highlights, interior details). */
+export interface IListingEntry {
+  label: string;
+  value: string;
+}
+
+export interface IListingMaps {
+  /** Google Maps embed URLs. */
+  location?: string;
+  schools?: string;
+  shops?: string;
 }
 
 export interface IListing {
-  title: string;
+  name: string;
   slug: string;
-  description: string;
-  /** Whole currency units per month, e.g. 750 = €750. */
-  pricePerMonth: number;
-  currency: string;
-  type: ListingType;
-  bedrooms: number;
-  bathrooms: number;
-  areaM2?: number;
-  floor?: number;
-  furnished: boolean;
-  amenities: string[];
   address: IListingAddress;
+  /** Total build cost in whole US dollars. */
+  totalCost: number;
+  beds: number;
+  /** Can be fractional, e.g. 3.5 or 3.75. */
+  baths: number;
+  sqft: number;
+  description: string;
+  year?: number;
+  /** Annual property tax in whole dollars. */
+  propertyTax?: number;
+  assessment?: number;
+  maps: IListingMaps;
+  highlights: IListingEntry[];
+  interior: IListingEntry[];
+  roomTypes: string[];
   images: string[];
-  availableFrom?: Date;
+  /** Other listings that are similar, seeded or set by a teacher. */
+  similar: Types.ObjectId[];
   status: ListingStatus;
   rejectionReason?: string;
+  /** The student who submitted the design (credited as "designed by"). */
   owner: Types.ObjectId;
+  /** The team that owns the design — every member can manage it. */
+  team?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -64,31 +82,50 @@ type ListingModel = Model<IListing>;
 
 const addressSchema = new Schema<IListingAddress>(
   {
-    street: { type: String, trim: true, maxlength: 160 },
+    line1: { type: String, trim: true, maxlength: 160 },
     city: { type: String, required: true, trim: true, maxlength: 80 },
+    state: { type: String, trim: true, maxlength: 40 },
     postalCode: { type: String, trim: true, maxlength: 20 },
-    country: { type: String, trim: true, maxlength: 80 },
+  },
+  { _id: false },
+);
+
+const entrySchema = new Schema<IListingEntry>(
+  {
+    label: { type: String, required: true, trim: true, maxlength: 60 },
+    value: { type: String, required: true, trim: true, maxlength: 200 },
+  },
+  { _id: false },
+);
+
+const mapsSchema = new Schema<IListingMaps>(
+  {
+    location: { type: String, trim: true, maxlength: 1000 },
+    schools: { type: String, trim: true, maxlength: 1000 },
+    shops: { type: String, trim: true, maxlength: 1000 },
   },
   { _id: false },
 );
 
 const listingSchema = new Schema<IListing, ListingModel>(
   {
-    title: { type: String, required: true, trim: true, maxlength: 120 },
+    name: { type: String, required: true, trim: true, maxlength: 120 },
     slug: { type: String, required: true, unique: true, trim: true },
-    description: { type: String, required: true, trim: true, maxlength: 4000 },
-    pricePerMonth: { type: Number, required: true, min: 0 },
-    currency: { type: String, default: "EUR", trim: true, uppercase: true },
-    type: { type: String, enum: LISTING_TYPES, required: true },
-    bedrooms: { type: Number, default: 0, min: 0 },
-    bathrooms: { type: Number, default: 0, min: 0 },
-    areaM2: { type: Number, min: 0 },
-    floor: { type: Number },
-    furnished: { type: Boolean, default: false },
-    amenities: { type: [String], default: [] },
     address: { type: addressSchema, required: true },
+    totalCost: { type: Number, required: true, min: 0 },
+    beds: { type: Number, default: 0, min: 0 },
+    baths: { type: Number, default: 0, min: 0 },
+    sqft: { type: Number, default: 0, min: 0 },
+    description: { type: String, required: true, trim: true, maxlength: 6000 },
+    year: { type: Number },
+    propertyTax: { type: Number, min: 0 },
+    assessment: { type: Number, min: 0 },
+    maps: { type: mapsSchema, default: () => ({}) },
+    highlights: { type: [entrySchema], default: [] },
+    interior: { type: [entrySchema], default: [] },
+    roomTypes: { type: [String], default: [] },
     images: { type: [String], default: [] },
-    availableFrom: { type: Date },
+    similar: [{ type: Schema.Types.ObjectId, ref: "Listing" }],
     status: {
       type: String,
       enum: LISTING_STATUSES,
@@ -100,6 +137,11 @@ const listingSchema = new Schema<IListing, ListingModel>(
       type: Schema.Types.ObjectId,
       ref: "User",
       required: true,
+      index: true,
+    },
+    team: {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
       index: true,
     },
   },
@@ -114,12 +156,12 @@ const listingSchema = new Schema<IListing, ListingModel>(
 
 // Fallback so a listing always has a slug, even if a caller forgets to set one.
 listingSchema.pre("validate", function () {
-  if (!this.slug && this.title) this.slug = slugify(this.title);
+  if (!this.slug && this.name) this.slug = slugify(this.name);
 });
 
 // Browse + moderation queries filter on these.
 listingSchema.index({ status: 1, createdAt: -1 });
-listingSchema.index({ status: 1, pricePerMonth: 1 });
+listingSchema.index({ status: 1, totalCost: 1 });
 listingSchema.index({ "address.city": 1 });
 
 export const Listing = model<IListing, ListingModel>("Listing", listingSchema);

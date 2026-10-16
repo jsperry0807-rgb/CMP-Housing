@@ -17,6 +17,11 @@ export default defineConfig({
         target: "http://localhost:4000",
         changeOrigin: true,
       },
+      // Uploaded photos and team logos are served by the API too.
+      "/uploads": {
+        target: "http://localhost:4000",
+        changeOrigin: true,
+      },
     },
   },
 });

@@ -1,9 +1,11 @@
 import {
   ArrowLeft,
-  Building2,
+  Home,
   LayoutDashboard,
   PlusCircle,
   ShieldCheck,
+  UserCog,
+  UsersRound,
   type LucideIcon,
 } from "lucide-react";
 import type { ReactNode } from "react";
@@ -32,10 +34,23 @@ const NAV: NavItem[] = [
     matches: ["dashboard"],
   },
   {
-    label: "My listings",
+    label: "Team designs",
     href: "/dashboard/listings",
-    icon: Building2,
+    icon: Home,
     matches: ["my-listings", "listing-form"],
+  },
+  {
+    label: "Team profile",
+    href: "/dashboard/team",
+    icon: UsersRound,
+    matches: ["team-profile"],
+  },
+  {
+    label: "Manage teams",
+    href: "/dashboard/teams",
+    icon: UserCog,
+    matches: ["teams"],
+    adminOnly: true,
   },
   {
     label: "Moderation",
@@ -101,7 +116,7 @@ export default function DashboardLayout({
             className={cn(buttonVariants({ size: "lg" }), "w-full")}
           >
             <PlusCircle />
-            New listing
+            New design
           </a>
         </div>
 

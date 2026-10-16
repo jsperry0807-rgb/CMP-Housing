@@ -11,6 +11,7 @@ import DashboardLayout from "@/components/dashboard-layout";
 import EmptyState from "@/components/empty-state";
 import ListingImage from "@/components/listing-image";
 import StatusBadge from "@/components/status-badge";
+import TeamAvatar from "@/components/team-avatar";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -25,27 +26,27 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
   adminApi,
+  formatCost,
   formatDate,
-  formatPrice,
   LISTING_STATUS_LABELS,
+  ownerTeam,
   type Listing,
   type ListingStatus,
 } from "@/lib/listings";
 import { useAsyncData } from "@/lib/use-async-data";
 import { cn } from "@/lib/utils";
 
-const TABS: ListingStatus[] = [
-  "pending",
-  "active",
-  "rejected",
-  "rented",
-  "draft",
-];
+const TABS: ListingStatus[] = ["pending", "active", "rejected", "draft"];
 
-function ownerContact(listing: Listing): string | null {
-  return typeof listing.owner === "object" && listing.owner !== null
-    ? (listing.owner.email ?? listing.owner.name)
-    : null;
+/** The team that submitted a design, with contact details for the teacher. */
+function submitter(
+  listing: Listing,
+): { name: string; detail?: string; logo?: string } | null {
+  const team = ownerTeam(listing);
+  if (!team) return null;
+
+  const detail = [team.member, team.email].filter(Boolean).join(" · ");
+  return { name: team.name, detail: detail || undefined, logo: team.logo };
 }
 
 export default function Moderation() {
@@ -69,13 +70,11 @@ export default function Moderation() {
     setBusyId(listing._id);
     try {
       await adminApi.approve(listing._id);
-      toast.success(`“${listing.title}” is now live.`);
+      toast.success(`“${listing.name}” is now live.`);
       reload();
     } catch (error) {
       toast.error(
-        error instanceof Error
-          ? error.message
-          : "Could not approve the listing",
+        error instanceof Error ? error.message : "Could not approve the design",
       );
     } finally {
       setBusyId(null);
@@ -100,12 +99,12 @@ export default function Moderation() {
     setSavingReject(true);
     try {
       await adminApi.reject(rejecting._id, value);
-      toast.success(`“${rejecting.title}” was rejected.`);
+      toast.success(`“${rejecting.name}” was rejected.`);
       setRejecting(null);
       reload();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not reject the listing",
+        error instanceof Error ? error.message : "Could not reject the design",
       );
     } finally {
       setSavingReject(false);
@@ -115,7 +114,7 @@ export default function Moderation() {
   return (
     <DashboardLayout
       title="Moderation"
-      description="Approve listings so they go live, or send them back with a reason."
+      description="Approve student designs so they go live, or send them back with a reason."
     >
       <div className="flex flex-wrap items-center gap-2">
         <div className="inline-flex rounded-lg border p-1">
@@ -139,7 +138,7 @@ export default function Moderation() {
 
         {!loading && !error && (
           <p className="text-sm text-muted-foreground">
-            {data?.total ?? 0} listing{(data?.total ?? 0) === 1 ? "" : "s"}
+            {data?.total ?? 0} design{(data?.total ?? 0) === 1 ? "" : "s"}
           </p>
         )}
       </div>
@@ -160,7 +159,7 @@ export default function Moderation() {
             description={
               status === "pending"
                 ? "The queue is clear. New submissions will show up here."
-                : `No listings have the “${LISTING_STATUS_LABELS[status]}” status.`
+                : `No designs have the “${LISTING_STATUS_LABELS[status]}” status.`
             }
           />
         ) : (
@@ -168,6 +167,10 @@ export default function Moderation() {
             <ul className="divide-y">
               {items.map((listing) => {
                 const busy = busyId === listing._id;
+                const team = submitter(listing);
+                const city = [listing.address?.city, listing.address?.state]
+                  .filter(Boolean)
+                  .join(", ");
 
                 return (
                   <li
@@ -177,11 +180,11 @@ export default function Moderation() {
                     <a
                       href={`#/listings/${listing.slug}`}
                       className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted"
-                      aria-label={`View ${listing.title}`}
+                      aria-label={`View ${listing.name}`}
                     >
                       <ListingImage
-                        src={listing.images[0]}
-                        alt={listing.title}
+                        src={listing.images?.[0]}
+                        alt={listing.name}
                       />
                     </a>
 
@@ -191,20 +194,34 @@ export default function Moderation() {
                           href={`#/listings/${listing.slug}`}
                           className="truncate font-medium hover:underline"
                         >
-                          {listing.title}
+                          {listing.name}
                         </a>
                         <StatusBadge status={listing.status} />
                       </div>
 
                       <p className="mt-0.5 text-sm text-muted-foreground">
-                        {formatPrice(listing)} / month · {listing.address.city}{" "}
-                        · submitted {formatDate(listing.createdAt)}
+                        {formatCost(listing.totalCost)} · {city || "—"} ·
+                        submitted {formatDate(listing.createdAt)}
                       </p>
 
-                      {ownerContact(listing) && (
-                        <p className="text-xs text-muted-foreground">
-                          {ownerContact(listing)}
-                        </p>
+                      {team && (
+                        <div className="mt-1.5 flex items-center gap-2">
+                          <TeamAvatar
+                            name={team.name}
+                            logo={team.logo}
+                            size="sm"
+                          />
+                          <div className="min-w-0">
+                            <p className="truncate text-xs font-medium">
+                              {team.name}
+                            </p>
+                            {team.detail && (
+                              <p className="truncate text-xs text-muted-foreground">
+                                {team.detail}
+                              </p>
+                            )}
+                          </div>
+                        </div>
                       )}
 
                       {listing.status === "rejected" &&
@@ -270,10 +287,10 @@ export default function Moderation() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Reject this listing?</DialogTitle>
+            <DialogTitle>Reject this design?</DialogTitle>
             <DialogDescription>
-              {rejecting ? `“${rejecting.title}”` : "This listing"} will be
-              hidden from the public and the owner will see your reason.
+              {rejecting ? `“${rejecting.name}”` : "This design"} will be hidden
+              from the public and the team will see your reason.
             </DialogDescription>
           </DialogHeader>
 
@@ -284,7 +301,7 @@ export default function Moderation() {
                 setReason(event.target.value);
                 if (rejectError) setRejectError(null);
               }}
-              placeholder="e.g. The photos do not show the actual room."
+              placeholder="e.g. The photos do not match the floor plan."
               rows={3}
               maxLength={500}
               aria-label="Reason for rejection"
@@ -312,7 +329,7 @@ export default function Moderation() {
               onClick={confirmReject}
             >
               {savingReject ? <LoaderCircle className="animate-spin" /> : <X />}
-              Reject listing
+              Reject design
             </Button>
           </DialogFooter>
         </DialogContent>

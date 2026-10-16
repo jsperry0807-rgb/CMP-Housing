@@ -12,6 +12,8 @@ import Login from "@/pages/login";
 import Moderation from "@/pages/moderation";
 import MyListings from "@/pages/my-listings";
 import Signup from "@/pages/signup";
+import TeamProfile from "@/pages/team-profile";
+import Teams from "@/pages/teams";
 
 export default function App() {
   const route = useRoute();
@@ -29,7 +31,10 @@ export default function App() {
       navigate("/login");
       return;
     }
-    if (current.name === "moderation" && user?.role !== "admin") {
+    if (
+      (current.name === "moderation" || current.name === "teams") &&
+      user?.role !== "admin"
+    ) {
       navigate("/dashboard");
       return;
     }
@@ -49,6 +54,10 @@ export default function App() {
       return user ? <Dashboard /> : <FullPageLoader />;
     case "my-listings":
       return user ? <MyListings /> : <FullPageLoader />;
+    case "team-profile":
+      return user ? <TeamProfile /> : <FullPageLoader />;
+    case "teams":
+      return user?.role === "admin" ? <Teams /> : <FullPageLoader />;
     case "listing-form":
       return user ? (
         <ListingForm key={route.slug ?? "new"} slug={route.slug} />
@@ -57,6 +66,12 @@ export default function App() {
       );
     case "moderation":
       return user?.role === "admin" ? <Moderation /> : <FullPageLoader />;
+    case "home":
+      return (
+        <SiteLayout>
+          <Home />
+        </SiteLayout>
+      );
     case "browse":
       return (
         <SiteLayout>
@@ -71,9 +86,10 @@ export default function App() {
         </SiteLayout>
       );
     default:
+      // Browse is the main page, so it also backs the root and unknown paths.
       return (
         <SiteLayout>
-          <Home />
+          <Browse query={route.query} />
         </SiteLayout>
       );
   }

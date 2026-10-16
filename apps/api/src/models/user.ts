@@ -1,4 +1,10 @@
-import { model, Schema, type HydratedDocument, type Model } from "mongoose";
+import {
+  model,
+  Schema,
+  type HydratedDocument,
+  type Model,
+  type Types,
+} from "mongoose";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 
 export const USER_ROLES = ["user", "admin"] as const;
@@ -9,6 +15,8 @@ export interface IUser {
   email: string;
   password: string;
   role: UserRole;
+  /** The student team this account belongs to. Assigned by a teacher. */
+  team?: Types.ObjectId;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -46,6 +54,11 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
       enum: USER_ROLES,
       default: "user",
       required: true,
+    },
+    team: {
+      type: Schema.Types.ObjectId,
+      ref: "Team",
+      index: true,
     },
   },
   {

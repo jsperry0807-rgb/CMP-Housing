@@ -7,14 +7,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   listingsApi,
   type BrowseParams,
-  type ListingType,
   type SortOption,
 } from "@/lib/listings";
 import { buildPath, navigate } from "@/lib/router";
 import { useAsyncData } from "@/lib/use-async-data";
 
-const SORTS: SortOption[] = ["newest", "price-asc", "price-desc"];
-const TYPES: ListingType[] = ["room", "studio", "apartment", "house"];
+const SORTS: SortOption[] = ["newest", "cost-asc", "cost-desc", "sqft-desc"];
 
 function toNumber(value: string | null): number | undefined {
   if (!value) return undefined;
@@ -23,18 +21,13 @@ function toNumber(value: string | null): number | undefined {
 }
 
 function parseBrowseParams(query: URLSearchParams): BrowseParams {
-  const type = query.get("type");
   const sort = query.get("sort");
 
   return {
     q: query.get("q") ?? undefined,
-    type: TYPES.includes(type as ListingType)
-      ? (type as ListingType)
-      : undefined,
-    maxPrice: toNumber(query.get("maxPrice")),
-    minPrice: toNumber(query.get("minPrice")),
-    bedrooms: toNumber(query.get("bedrooms")),
-    furnished: query.get("furnished") === "true" ? true : undefined,
+    maxCost: toNumber(query.get("maxCost")),
+    minCost: toNumber(query.get("minCost")),
+    beds: toNumber(query.get("beds")),
     sort: SORTS.includes(sort as SortOption) ? (sort as SortOption) : undefined,
     page: toNumber(query.get("page")) ?? 1,
     limit: 12,
@@ -61,10 +54,11 @@ export default function Browse({ query }: { query: URLSearchParams }) {
     <div className="mx-auto w-full max-w-6xl px-6 py-10">
       <div className="max-w-2xl">
         <h1 className="font-heading text-3xl font-semibold tracking-tight">
-          Browse housing
+          Browse student designs
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Filter by city, budget and size to find a place that fits.
+          Every house designed by an ECTS team, filterable by cost, size and
+          keyword.
         </p>
       </div>
 
@@ -88,7 +82,7 @@ export default function Browse({ query }: { query: URLSearchParams }) {
         {error && (
           <EmptyState
             icon={SearchX}
-            title="Could not load listings"
+            title="Could not load designs"
             description={error}
           />
         )}
@@ -96,8 +90,8 @@ export default function Browse({ query }: { query: URLSearchParams }) {
         {data && data.items.length === 0 && (
           <EmptyState
             icon={SearchX}
-            title="No listings match your filters"
-            description="Try widening your budget or removing a filter."
+            title="No designs match your filters"
+            description="Try widening the budget or clearing the search."
             action={
               <Button variant="outline" onClick={() => navigate("/listings")}>
                 Clear filters
@@ -109,7 +103,7 @@ export default function Browse({ query }: { query: URLSearchParams }) {
         {data && data.items.length > 0 && (
           <>
             <p className="text-sm text-muted-foreground" role="status">
-              {data.total} {data.total === 1 ? "listing" : "listings"} found
+              {data.total} {data.total === 1 ? "design" : "designs"} found
             </p>
 
             <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-3">

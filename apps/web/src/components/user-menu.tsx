@@ -1,6 +1,6 @@
-import { CirclePlus, LayoutDashboard, LogOut } from "lucide-react";
+import { CirclePlus, LayoutDashboard, LogOut, UsersRound } from "lucide-react";
 import { useState } from "react";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import TeamAvatar from "@/components/team-avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -14,18 +14,11 @@ import type { ApiUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { navigate } from "@/lib/router";
 
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + last).toUpperCase();
-}
-
 export default function UserMenu({ user }: { user: ApiUser }) {
   const { logout } = useAuth();
   const [pending, setPending] = useState(false);
+
+  const team = user.team?.name?.trim() || user.name;
 
   async function handleSignOut() {
     setPending(true);
@@ -43,19 +36,15 @@ export default function UserMenu({ user }: { user: ApiUser }) {
         aria-label="Account menu"
         className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
       >
-        <Avatar>
-          <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-500 font-semibold text-white">
-            {initials(user.name)}
-          </AvatarFallback>
-        </Avatar>
+        <TeamAvatar name={team} logo={user.team?.logo} />
       </DropdownMenuTrigger>
 
-      <DropdownMenuContent align="end" className="w-56">
+      <DropdownMenuContent align="end" className="w-60">
         <DropdownMenuGroup>
           <DropdownMenuLabel>
-            <p className="truncate text-sm font-medium">{user.name}</p>
+            <p className="truncate text-sm font-medium">{team}</p>
             <p className="truncate text-xs font-normal text-muted-foreground">
-              {user.email}
+              {user.name} · {user.email}
             </p>
           </DropdownMenuLabel>
           <DropdownMenuItem onClick={() => navigate("/dashboard")}>
@@ -64,8 +53,18 @@ export default function UserMenu({ user }: { user: ApiUser }) {
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => navigate("/dashboard/listings/new")}>
             <CirclePlus />
-            New listing
+            New design
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => navigate("/dashboard/team")}>
+            <UsersRound />
+            Team profile
+          </DropdownMenuItem>
+          {user.role === "admin" && (
+            <DropdownMenuItem onClick={() => navigate("/dashboard/teams")}>
+              <UsersRound />
+              Manage teams
+            </DropdownMenuItem>
+          )}
         </DropdownMenuGroup>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut} disabled={pending}>

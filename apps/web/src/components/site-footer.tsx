@@ -11,13 +11,13 @@ export default function SiteFooter() {
             className="transition-colors hover:text-foreground"
             href="#/listings"
           >
-            Browse listings
+            Browse designs
           </a>
           <a
             className="transition-colors hover:text-foreground"
             href="#/signup"
           >
-            List a place
+            Submit a design
           </a>
           <a className="transition-colors hover:text-foreground" href="#/login">
             Sign in
@@ -25,7 +25,7 @@ export default function SiteFooter() {
         </nav>
 
         <p className="text-xs text-muted-foreground">
-          © {new Date().getFullYear()} ECTS Housing — a demo project.
+          © {new Date().getFullYear()} ECTS Housing — a student design showcase.
         </p>
       </div>
     </footer>

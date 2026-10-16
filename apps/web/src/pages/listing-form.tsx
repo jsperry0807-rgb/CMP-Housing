@@ -1,9 +1,9 @@
 import {
   CircleAlert,
-  ImageIcon,
   LoaderCircle,
   Plus,
   Save,
+  UsersRound,
   X,
 } from "lucide-react";
 import {
@@ -15,7 +15,8 @@ import {
 } from "react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/dashboard-layout";
-import ListingImage from "@/components/listing-image";
+import EmptyState from "@/components/empty-state";
+import ImageUploader from "@/components/image-uploader";
 import StatusBadge from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -25,7 +26,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -38,94 +38,106 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
-  AMENITY_PRESETS,
-  LISTING_TYPES,
-  LISTING_TYPE_LABELS,
   listingsApi,
   type Listing,
   type ListingAddress,
+  type ListingEntry,
   type ListingInput,
+  type ListingMaps,
   type ListingStatus,
-  type ListingType,
 } from "@/lib/listings";
 import { navigate } from "@/lib/router";
 import { cn } from "@/lib/utils";
 
+/** A repeatable "label: value" row. */
+interface EntryRow {
+  label: string;
+  value: string;
+}
+
 /** Numeric inputs are kept as strings so a half-typed value never becomes NaN. */
 interface FormState {
-  title: string;
+  name: string;
   description: string;
-  type: ListingType;
-  pricePerMonth: string;
-  bedrooms: string;
-  bathrooms: string;
-  areaM2: string;
-  floor: string;
-  furnished: boolean;
-  amenities: string[];
-  street: string;
+  totalCost: string;
+  beds: string;
+  baths: string;
+  sqft: string;
+  year: string;
+  propertyTax: string;
+  assessment: string;
+  line1: string;
   city: string;
+  state: string;
   postalCode: string;
-  country: string;
-  imagesText: string;
-  availableFrom: string;
+  mapLocation: string;
+  mapSchools: string;
+  mapShops: string;
+  highlights: EntryRow[];
+  interior: EntryRow[];
+  roomTypes: string[];
+  images: string[];
   /** Only meaningfully used while editing. */
   status: Visibility;
 }
 
 /** The owner-settable statuses, plus "keep" which only appears when editing. */
-type Visibility = "keep" | "draft" | "pending" | "rented";
+type Visibility = "keep" | "draft" | "pending";
+
+const MAX_IMAGES = 15;
 
 const EMPTY_FORM: FormState = {
-  title: "",
+  name: "",
   description: "",
-  type: "apartment",
-  pricePerMonth: "",
-  bedrooms: "1",
-  bathrooms: "1",
-  areaM2: "",
-  floor: "",
-  furnished: false,
-  amenities: [],
-  street: "",
+  totalCost: "",
+  beds: "3",
+  baths: "2",
+  sqft: "",
+  year: "",
+  propertyTax: "",
+  assessment: "",
+  line1: "",
   city: "",
+  state: "",
   postalCode: "",
-  country: "",
-  imagesText: "",
-  availableFrom: "",
+  mapLocation: "",
+  mapSchools: "",
+  mapShops: "",
+  highlights: [],
+  interior: [],
+  roomTypes: [],
+  images: [],
   status: "pending",
 };
 
 function fromListing(listing: Listing): FormState {
   return {
-    title: listing.title,
+    name: listing.name,
     description: listing.description,
-    type: listing.type,
-    pricePerMonth: String(listing.pricePerMonth),
-    bedrooms: String(listing.bedrooms),
-    bathrooms: String(listing.bathrooms),
-    areaM2: listing.areaM2 === undefined ? "" : String(listing.areaM2),
-    floor: listing.floor === undefined ? "" : String(listing.floor),
-    furnished: listing.furnished,
-    amenities: listing.amenities ?? [],
-    street: listing.address?.street ?? "",
+    totalCost: String(listing.totalCost),
+    beds: String(listing.beds),
+    baths: String(listing.baths),
+    sqft: String(listing.sqft),
+    year: listing.year === undefined ? "" : String(listing.year),
+    propertyTax:
+      listing.propertyTax === undefined ? "" : String(listing.propertyTax),
+    assessment:
+      listing.assessment === undefined ? "" : String(listing.assessment),
+    line1: listing.address?.line1 ?? "",
     city: listing.address?.city ?? "",
+    state: listing.address?.state ?? "",
     postalCode: listing.address?.postalCode ?? "",
-    country: listing.address?.country ?? "",
-    imagesText: (listing.images ?? []).join("\n"),
-    availableFrom: listing.availableFrom
-      ? listing.availableFrom.slice(0, 10)
-      : "",
+    mapLocation: listing.maps?.location ?? "",
+    mapSchools: listing.maps?.schools ?? "",
+    mapShops: listing.maps?.shops ?? "",
+    highlights: listing.highlights?.map((entry) => ({ ...entry })) ?? [],
+    interior: listing.interior?.map((entry) => ({ ...entry })) ?? [],
+    roomTypes: [...(listing.roomTypes ?? [])],
+    images: [...(listing.images ?? [])],
     status: "keep",
   };
-}
-
-function parseLines(text: string): string[] {
-  return text
-    .split("\n")
-    .map((line) => line.trim())
-    .filter(Boolean);
 }
 
 function toNumber(value: string): number | undefined {
@@ -135,30 +147,49 @@ function toNumber(value: string): number | undefined {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
+/** Every row must be complete, or removed entirely. */
+function incompleteRows(rows: EntryRow[]): boolean {
+  return rows.some(
+    (row) => Boolean(row.label.trim()) !== Boolean(row.value.trim()),
+  );
+}
+
+function cleanEntries(rows: EntryRow[]): ListingEntry[] {
+  return rows
+    .filter((row) => row.label.trim() && row.value.trim())
+    .map((row) => ({ label: row.label.trim(), value: row.value.trim() }));
+}
+
 /** Client-side pre-flight; the API re-validates everything anyway. */
 function validate(form: FormState): Record<string, string> {
   const errors: Record<string, string> = {};
 
-  if (form.title.trim().length < 5) {
-    errors.title = "Use at least 5 characters.";
+  if (form.name.trim().length < 3) {
+    errors.name = "Use at least 3 characters.";
   }
 
   if (form.description.trim().length < 20) {
     errors.description = "Write at least 20 characters.";
   }
 
-  const price = toNumber(form.pricePerMonth);
-  if (price === undefined || price <= 0) {
-    errors.pricePerMonth = "Enter a monthly price greater than 0.";
+  const cost = toNumber(form.totalCost);
+  if (cost === undefined || cost <= 0) {
+    errors.totalCost = "Enter a total cost greater than 0.";
   }
 
   if (!form.city.trim()) errors.city = "City is required.";
 
-  const images = parseLines(form.imagesText);
-  if (images.length > 12) {
-    errors.images = "Use at most 12 images.";
-  } else if (images.some((url) => !/^https?:\/\//i.test(url))) {
-    errors.images = "Every image URL must start with http:// or https://";
+  if (form.images.length === 0) {
+    errors.images = "Add at least one photo.";
+  } else if (form.images.length > MAX_IMAGES) {
+    errors.images = `Use at most ${MAX_IMAGES} photos.`;
+  }
+
+  if (incompleteRows(form.highlights)) {
+    errors.highlights = "Complete or remove the highlighted rows.";
+  }
+  if (incompleteRows(form.interior)) {
+    errors.interior = "Complete or remove the highlighted rows.";
   }
 
   return errors;
@@ -166,32 +197,38 @@ function validate(form: FormState): Record<string, string> {
 
 function buildPayload(form: FormState): ListingInput {
   const address: ListingAddress = { city: form.city.trim() };
-  if (form.street.trim()) address.street = form.street.trim();
+  if (form.line1.trim()) address.line1 = form.line1.trim();
+  if (form.state.trim()) address.state = form.state.trim();
   if (form.postalCode.trim()) address.postalCode = form.postalCode.trim();
-  if (form.country.trim()) address.country = form.country.trim();
+
+  const maps: ListingMaps = {};
+  if (form.mapLocation.trim()) maps.location = form.mapLocation.trim();
+  if (form.mapSchools.trim()) maps.schools = form.mapSchools.trim();
+  if (form.mapShops.trim()) maps.shops = form.mapShops.trim();
 
   const payload: ListingInput = {
-    title: form.title.trim(),
+    name: form.name.trim(),
     description: form.description.trim(),
-    pricePerMonth: toNumber(form.pricePerMonth) ?? 0,
-    type: form.type,
-    bedrooms: toNumber(form.bedrooms) ?? 0,
-    bathrooms: toNumber(form.bathrooms) ?? 0,
-    furnished: form.furnished,
-    amenities: form.amenities,
+    totalCost: toNumber(form.totalCost) ?? 0,
+    beds: toNumber(form.beds) ?? 0,
+    baths: toNumber(form.baths) ?? 0,
+    sqft: toNumber(form.sqft) ?? 0,
     address,
-    images: parseLines(form.imagesText),
+    maps,
+    highlights: cleanEntries(form.highlights),
+    interior: cleanEntries(form.interior),
+    roomTypes: form.roomTypes.map((room) => room.trim()).filter(Boolean),
+    images: form.images,
   };
 
-  const areaM2 = toNumber(form.areaM2);
-  if (areaM2 !== undefined) payload.areaM2 = areaM2;
+  const year = toNumber(form.year);
+  if (year !== undefined) payload.year = year;
 
-  const floor = toNumber(form.floor);
-  if (floor !== undefined) payload.floor = floor;
+  const propertyTax = toNumber(form.propertyTax);
+  if (propertyTax !== undefined) payload.propertyTax = propertyTax;
 
-  if (form.availableFrom) {
-    payload.availableFrom = new Date(form.availableFrom).toISOString();
-  }
+  const assessment = toNumber(form.assessment);
+  if (assessment !== undefined) payload.assessment = assessment;
 
   if (form.status !== "keep") payload.status = form.status;
 
@@ -226,8 +263,78 @@ function Field({
   );
 }
 
+/** Two-column label/value rows with add and remove. */
+function EntryRows({
+  id,
+  rows,
+  onChange,
+  labelPlaceholder,
+  valuePlaceholder,
+  error,
+}: {
+  id: string;
+  rows: EntryRow[];
+  onChange: (rows: EntryRow[]) => void;
+  labelPlaceholder: string;
+  valuePlaceholder: string;
+  error?: string;
+}) {
+  function update(index: number, patch: Partial<EntryRow>) {
+    onChange(rows.map((row, i) => (i === index ? { ...row, ...patch } : row)));
+  }
+
+  return (
+    <div className="flex flex-col gap-3">
+      {rows.map((row, index) => (
+        <div key={index} className="flex items-center gap-2">
+          <Input
+            id={`${id}-label-${index}`}
+            value={row.label}
+            onChange={(event) => update(index, { label: event.target.value })}
+            placeholder={labelPlaceholder}
+            aria-label={`Row ${index + 1} label`}
+            className="sm:max-w-52"
+          />
+          <Input
+            id={`${id}-value-${index}`}
+            value={row.value}
+            onChange={(event) => update(index, { value: event.target.value })}
+            placeholder={valuePlaceholder}
+            aria-label={`Row ${index + 1} value`}
+          />
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            aria-label={`Remove row ${index + 1}`}
+            onClick={() => onChange(rows.filter((_, i) => i !== index))}
+          >
+            <X />
+          </Button>
+        </div>
+      ))}
+
+      <div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          aria-label={`Add ${id} row`}
+          onClick={() => onChange([...rows, { label: "", value: "" }])}
+        >
+          <Plus />
+          Add row
+        </Button>
+      </div>
+
+      {error && <p className="text-xs text-destructive">{error}</p>}
+    </div>
+  );
+}
+
 export default function ListingForm({ slug }: { slug?: string }) {
   const editing = Boolean(slug);
+  const { user } = useAuth();
 
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [listingId, setListingId] = useState<string | null>(null);
@@ -238,7 +345,7 @@ export default function ListingForm({ slug }: { slug?: string }) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
-  const [customAmenity, setCustomAmenity] = useState("");
+  const [customRoom, setCustomRoom] = useState("");
 
   useEffect(() => {
     if (!slug) return;
@@ -260,7 +367,7 @@ export default function ListingForm({ slug }: { slug?: string }) {
           setLoadError(
             error instanceof Error
               ? error.message
-              : "Could not load this listing",
+              : "Could not load this design",
           );
         }
       })
@@ -277,33 +384,24 @@ export default function ListingForm({ slug }: { slug?: string }) {
     setForm((current) => ({ ...current, [key]: value }));
   }
 
-  function toggleAmenity(name: string) {
-    setForm((current) => ({
-      ...current,
-      amenities: current.amenities.includes(name)
-        ? current.amenities.filter((item) => item !== name)
-        : [...current.amenities, name],
-    }));
-  }
-
-  function addCustomAmenity() {
-    const value = customAmenity.trim();
+  function addRoom() {
+    const value = customRoom.trim();
     if (!value) return;
 
     setForm((current) =>
-      current.amenities.some(
-        (item) => item.toLowerCase() === value.toLowerCase(),
+      current.roomTypes.some(
+        (room) => room.toLowerCase() === value.toLowerCase(),
       )
         ? current
-        : { ...current, amenities: [...current.amenities, value] },
+        : { ...current, roomTypes: [...current.roomTypes, value] },
     );
-    setCustomAmenity("");
+    setCustomRoom("");
   }
 
-  function onCustomAmenityKeyDown(event: KeyboardEvent<HTMLInputElement>) {
+  function onRoomKeyDown(event: KeyboardEvent<HTMLInputElement>) {
     if (event.key === "Enter") {
       event.preventDefault();
-      addCustomAmenity();
+      addRoom();
     }
   }
 
@@ -325,13 +423,13 @@ export default function ListingForm({ slug }: { slug?: string }) {
 
       if (editing && listingId) {
         await listingsApi.update(listingId, payload);
-        toast.success("Listing updated.");
+        toast.success("Design updated.");
       } else {
         await listingsApi.create(payload);
         toast.success(
           payload.status === "draft"
             ? "Draft saved."
-            : "Submitted — an admin will review it shortly.",
+            : "Submitted — your teacher will review it shortly.",
         );
       }
 
@@ -348,10 +446,10 @@ export default function ListingForm({ slug }: { slug?: string }) {
     }
   }
 
-  const title = editing ? "Edit listing" : "New listing";
+  const title = editing ? "Edit design" : "New design";
   const description = editing
-    ? "Update the details below. Live listings stay live after saving."
-    : "Fill in the details and submit it for review.";
+    ? "Update the details below. Live designs stay live after saving."
+    : "Fill in the details of your house and submit it for your teacher to review.";
 
   if (loading) {
     return (
@@ -374,21 +472,42 @@ export default function ListingForm({ slug }: { slug?: string }) {
             href="#/dashboard/listings"
             className={buttonVariants({ variant: "outline", size: "sm" })}
           >
-            Back to my listings
+            Back to team designs
           </a>
         </Card>
       </DashboardLayout>
     );
   }
 
-  const previewImages = parseLines(form.imagesText).slice(0, 6);
+  // A design belongs to a team, so a student needs one before submitting.
+  if (!editing && user && user.role !== "admin" && !user.team) {
+    return (
+      <DashboardLayout
+        title="New design"
+        description="You need a team before you can submit a design."
+      >
+        <EmptyState
+          icon={UsersRound}
+          title="No team yet"
+          description="Your teacher will add you to a team. Once you are on one, you can submit designs for it."
+          action={
+            <a
+              href="#/dashboard/team"
+              className={buttonVariants({ variant: "outline", size: "sm" })}
+            >
+              View team profile
+            </a>
+          }
+        />
+      </DashboardLayout>
+    );
+  }
 
-  const statusItems = editing
+  const statusItems: Record<string, string> = editing
     ? {
         keep: `Keep current status${currentStatus ? ` (${currentStatus})` : ""}`,
         draft: "Draft — not submitted",
         pending: "Submit for review",
-        rented: "Mark as rented",
       }
     : {
         draft: "Save as draft",
@@ -410,19 +529,19 @@ export default function ListingForm({ slug }: { slug?: string }) {
           <CardHeader>
             <CardTitle>Basics</CardTitle>
             <CardDescription>
-              The headline details students see first.
+              Name your design and give it a short write-up.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="flex flex-col gap-4">
-            <Field label="Title" htmlFor="title" error={errors.title}>
+            <Field label="Design name" htmlFor="name" error={errors.name}>
               <Input
-                id="title"
-                value={form.title}
-                onChange={(event) => set("title", event.target.value)}
-                placeholder="Sunny room in a shared flat near campus"
+                id="name"
+                value={form.name}
+                onChange={(event) => set("name", event.target.value)}
+                placeholder="Barn Brothers"
                 maxLength={120}
-                aria-invalid={errors.title ? true : undefined}
+                aria-invalid={errors.name ? true : undefined}
               />
             </Field>
 
@@ -430,235 +549,273 @@ export default function ListingForm({ slug }: { slug?: string }) {
               label="Description"
               htmlFor="description"
               error={errors.description}
-              hint="What makes the place worth a visit? At least 20 characters."
+              hint="Describe the house, its layout and what makes it special. At least 20 characters."
             >
               <Textarea
                 id="description"
                 value={form.description}
                 onChange={(event) => set("description", event.target.value)}
-                placeholder="Furnished room with a desk, fast internet, and a shared kitchen…"
+                placeholder="A renovated barn with a wrap-around porch and an open kitchen…"
                 rows={5}
-                maxLength={4000}
+                maxLength={6000}
                 aria-invalid={errors.description ? true : undefined}
               />
             </Field>
-
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Type" htmlFor="type" error={errors.type}>
-                <Select
-                  items={LISTING_TYPE_LABELS}
-                  value={form.type}
-                  onValueChange={(value) =>
-                    set("type", (value ?? "apartment") as ListingType)
-                  }
-                >
-                  <SelectTrigger id="type" className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {LISTING_TYPES.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {LISTING_TYPE_LABELS[type]}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </Field>
-
-              <Field
-                label="Price per month (€)"
-                htmlFor="pricePerMonth"
-                error={errors.pricePerMonth}
-              >
-                <Input
-                  id="pricePerMonth"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  step={1}
-                  value={form.pricePerMonth}
-                  onChange={(event) => set("pricePerMonth", event.target.value)}
-                  placeholder="650"
-                  aria-invalid={errors.pricePerMonth ? true : undefined}
-                />
-              </Field>
-            </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Details</CardTitle>
-            <CardDescription>Size, layout, and availability.</CardDescription>
+            <CardTitle>Cost &amp; size</CardTitle>
+            <CardDescription>The numbers buyers compare first.</CardDescription>
           </CardHeader>
 
           <CardContent className="flex flex-col gap-4">
             <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
               <Field
-                label="Bedrooms"
-                htmlFor="bedrooms"
-                error={errors.bedrooms}
+                label="Total cost ($)"
+                htmlFor="totalCost"
+                error={errors.totalCost}
               >
                 <Input
-                  id="bedrooms"
+                  id="totalCost"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  step={1}
+                  value={form.totalCost}
+                  onChange={(event) => set("totalCost", event.target.value)}
+                  placeholder="500000"
+                  aria-invalid={errors.totalCost ? true : undefined}
+                />
+              </Field>
+
+              <Field label="Bedrooms" htmlFor="beds" error={errors.beds}>
+                <Input
+                  id="beds"
                   type="number"
                   inputMode="numeric"
                   min={0}
                   max={50}
-                  value={form.bedrooms}
-                  onChange={(event) => set("bedrooms", event.target.value)}
+                  value={form.beds}
+                  onChange={(event) => set("beds", event.target.value)}
                 />
               </Field>
 
               <Field
                 label="Bathrooms"
-                htmlFor="bathrooms"
-                error={errors.bathrooms}
+                htmlFor="baths"
+                error={errors.baths}
+                hint="Decimals are fine, e.g. 3.5"
               >
                 <Input
-                  id="bathrooms"
-                  type="number"
-                  inputMode="numeric"
-                  min={0}
-                  max={50}
-                  value={form.bathrooms}
-                  onChange={(event) => set("bathrooms", event.target.value)}
-                />
-              </Field>
-
-              <Field
-                label="Area (m²)"
-                htmlFor="areaM2"
-                error={errors.areaM2}
-                hint="Optional"
-              >
-                <Input
-                  id="areaM2"
+                  id="baths"
                   type="number"
                   inputMode="decimal"
                   min={0}
-                  value={form.areaM2}
-                  onChange={(event) => set("areaM2", event.target.value)}
-                  placeholder="24"
+                  max={50}
+                  step={0.25}
+                  value={form.baths}
+                  onChange={(event) => set("baths", event.target.value)}
                 />
               </Field>
 
-              <Field
-                label="Floor"
-                htmlFor="floor"
-                error={errors.floor}
-                hint="Optional"
-              >
+              <Field label="Size (sqft)" htmlFor="sqft" error={errors.sqft}>
                 <Input
-                  id="floor"
+                  id="sqft"
                   type="number"
                   inputMode="numeric"
-                  value={form.floor}
-                  onChange={(event) => set("floor", event.target.value)}
-                  placeholder="2"
+                  min={0}
+                  value={form.sqft}
+                  onChange={(event) => set("sqft", event.target.value)}
+                  placeholder="3334"
                 />
               </Field>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
+            <div className="grid gap-4 sm:grid-cols-3">
               <Field
-                label="Available from"
-                htmlFor="availableFrom"
-                error={errors.availableFrom}
+                label="Year built"
+                htmlFor="year"
+                error={errors.year}
                 hint="Optional"
               >
                 <Input
-                  id="availableFrom"
-                  type="date"
-                  value={form.availableFrom}
-                  onChange={(event) => set("availableFrom", event.target.value)}
+                  id="year"
+                  type="number"
+                  inputMode="numeric"
+                  min={1800}
+                  max={2100}
+                  value={form.year}
+                  onChange={(event) => set("year", event.target.value)}
+                  placeholder="2022"
                 />
               </Field>
 
-              <div className="flex flex-col justify-end gap-2">
-                <Label htmlFor="furnished">Furnishing</Label>
-                <label
-                  htmlFor="furnished"
-                  className="flex h-8 items-center gap-2 text-sm"
-                >
-                  <Checkbox
-                    id="furnished"
-                    checked={form.furnished}
-                    onCheckedChange={(checked) =>
-                      set("furnished", checked === true)
-                    }
-                  />
-                  Offered furnished
-                </label>
-              </div>
+              <Field
+                label="Property tax / yr ($)"
+                htmlFor="propertyTax"
+                error={errors.propertyTax}
+                hint="Optional"
+              >
+                <Input
+                  id="propertyTax"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={form.propertyTax}
+                  onChange={(event) => set("propertyTax", event.target.value)}
+                />
+              </Field>
+
+              <Field
+                label="Assessment ($)"
+                htmlFor="assessment"
+                error={errors.assessment}
+                hint="Optional"
+              >
+                <Input
+                  id="assessment"
+                  type="number"
+                  inputMode="numeric"
+                  min={0}
+                  value={form.assessment}
+                  onChange={(event) => set("assessment", event.target.value)}
+                />
+              </Field>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Amenities</CardTitle>
-            <CardDescription>
-              Tap the common ones, or add your own.
-            </CardDescription>
+            <CardTitle>Location</CardTitle>
+            <CardDescription>Where the house is built.</CardDescription>
           </CardHeader>
 
           <CardContent className="flex flex-col gap-4">
-            <div className="flex flex-wrap gap-2">
-              {AMENITY_PRESETS.map((name) => {
-                const selected = form.amenities.includes(name);
-                return (
-                  <button
-                    key={name}
-                    type="button"
-                    aria-pressed={selected}
-                    onClick={() => toggleAmenity(name)}
-                    className={cn(
-                      "rounded-full border px-3 py-1 text-xs transition-colors",
-                      selected
-                        ? "border-transparent bg-primary text-primary-foreground"
-                        : "border-input text-muted-foreground hover:bg-muted hover:text-foreground",
-                    )}
-                  >
-                    {name}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="flex gap-2">
+            <Field
+              label="Street address"
+              htmlFor="line1"
+              error={errors.line1}
+              hint="Optional"
+            >
               <Input
-                value={customAmenity}
-                onChange={(event) => setCustomAmenity(event.target.value)}
-                onKeyDown={onCustomAmenityKeyDown}
-                placeholder="Add another amenity"
-                aria-label="Add another amenity"
-                maxLength={40}
+                id="line1"
+                value={form.line1}
+                onChange={(event) => set("line1", event.target.value)}
+                placeholder="101 SW Western Blvd"
+                maxLength={160}
               />
-              <Button
-                type="button"
-                variant="outline"
-                size="lg"
-                onClick={addCustomAmenity}
-              >
-                <Plus />
-                Add
-              </Button>
-            </div>
+            </Field>
 
-            {form.amenities.length > 0 && (
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="City" htmlFor="city" error={errors.city}>
+                <Input
+                  id="city"
+                  value={form.city}
+                  onChange={(event) => set("city", event.target.value)}
+                  placeholder="Corvallis"
+                  maxLength={80}
+                  aria-invalid={errors.city ? true : undefined}
+                />
+              </Field>
+
+              <Field label="State" htmlFor="state" error={errors.state}>
+                <Input
+                  id="state"
+                  value={form.state}
+                  onChange={(event) => set("state", event.target.value)}
+                  placeholder="OR"
+                  maxLength={40}
+                />
+              </Field>
+
+              <Field
+                label="ZIP code"
+                htmlFor="postalCode"
+                error={errors.postalCode}
+              >
+                <Input
+                  id="postalCode"
+                  value={form.postalCode}
+                  onChange={(event) => set("postalCode", event.target.value)}
+                  placeholder="97333"
+                  maxLength={20}
+                />
+              </Field>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Highlights</CardTitle>
+            <CardDescription>
+              Short facts shown as cards, e.g. Parking → Garage, or HOA → None.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <EntryRows
+              id="highlights"
+              rows={form.highlights}
+              onChange={(rows) => set("highlights", rows)}
+              labelPlaceholder="Parking"
+              valuePlaceholder="Garage"
+              error={errors.highlights}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Interior</CardTitle>
+            <CardDescription>
+              Interior details, e.g. Basement → Full, or Dimensions &amp; Layout
+              → 3,334 sqft.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <EntryRows
+              id="interior"
+              rows={form.interior}
+              onChange={(rows) => set("interior", rows)}
+              labelPlaceholder="Basement"
+              valuePlaceholder="Full, Exterior Entry"
+              error={errors.interior}
+            />
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Rooms</CardTitle>
+            <CardDescription>
+              List the rooms in the house, e.g. Theater Room or Man Cave.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="flex flex-col gap-3">
+            {form.roomTypes.length > 0 && (
               <div className="flex flex-wrap gap-2">
-                {form.amenities.map((name) => (
+                {form.roomTypes.map((room) => (
                   <span
-                    key={name}
-                    className="inline-flex items-center gap-1 rounded-full bg-muted px-3 py-1 text-xs text-foreground"
+                    key={room}
+                    className="inline-flex items-center gap-1 rounded-full bg-muted py-1 pr-1 pl-3 text-sm"
                   >
-                    {name}
+                    {room}
                     <button
                       type="button"
-                      onClick={() => toggleAmenity(name)}
-                      aria-label={`Remove ${name}`}
-                      className="text-muted-foreground hover:text-foreground"
+                      aria-label={`Remove ${room}`}
+                      onClick={() =>
+                        set(
+                          "roomTypes",
+                          form.roomTypes.filter((item) => item !== room),
+                        )
+                      }
+                      className="grid size-5 place-items-center rounded-full transition-colors hover:bg-background"
                     >
                       <X className="size-3" />
                     </button>
@@ -667,70 +824,24 @@ export default function ListingForm({ slug }: { slug?: string }) {
               </div>
             )}
 
-            {errors.amenities && (
-              <p className="text-xs text-destructive">{errors.amenities}</p>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Location</CardTitle>
-            <CardDescription>
-              Only the city is shown on the public page.
-            </CardDescription>
-          </CardHeader>
-
-          <CardContent className="flex flex-col gap-4">
-            <Field label="Street" htmlFor="street" error={errors.street}>
+            <div className="flex gap-2">
               <Input
-                id="street"
-                value={form.street}
-                onChange={(event) => set("street", event.target.value)}
-                placeholder="12 Campusstraße"
-                maxLength={160}
+                value={customRoom}
+                onChange={(event) => setCustomRoom(event.target.value)}
+                onKeyDown={onRoomKeyDown}
+                placeholder="Add a room and press Enter"
+                aria-label="Add a room"
+                className="sm:max-w-xs"
               />
-            </Field>
-
-            <div className="grid gap-4 sm:grid-cols-3">
-              <Field
-                label="City"
-                htmlFor="city"
-                error={errors.city ?? errors.address}
+              <Button
+                type="button"
+                variant="outline"
+                aria-label="Add room"
+                onClick={addRoom}
               >
-                <Input
-                  id="city"
-                  value={form.city}
-                  onChange={(event) => set("city", event.target.value)}
-                  placeholder="Berlin"
-                  maxLength={80}
-                  aria-invalid={errors.city ? true : undefined}
-                />
-              </Field>
-
-              <Field
-                label="Postal code"
-                htmlFor="postalCode"
-                error={errors.postalCode}
-              >
-                <Input
-                  id="postalCode"
-                  value={form.postalCode}
-                  onChange={(event) => set("postalCode", event.target.value)}
-                  placeholder="10115"
-                  maxLength={20}
-                />
-              </Field>
-
-              <Field label="Country" htmlFor="country" error={errors.country}>
-                <Input
-                  id="country"
-                  value={form.country}
-                  onChange={(event) => set("country", event.target.value)}
-                  placeholder="Germany"
-                  maxLength={80}
-                />
-              </Field>
+                <Plus />
+                Add
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -739,64 +850,104 @@ export default function ListingForm({ slug }: { slug?: string }) {
           <CardHeader>
             <CardTitle>Photos</CardTitle>
             <CardDescription>
-              Paste one image URL per line — up to 12.
+              Up to {MAX_IMAGES} photos. The first three become the showcase
+              images.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="flex flex-col gap-4">
-            <Textarea
-              id="images"
-              value={form.imagesText}
-              onChange={(event) => set("imagesText", event.target.value)}
-              placeholder={
-                "https://picsum.photos/seed/my-room-1/1200/800\nhttps://picsum.photos/seed/my-room-2/1200/800"
-              }
-              rows={4}
-              aria-label="Image URLs"
-              aria-invalid={errors.images ? true : undefined}
+          <CardContent>
+            <ImageUploader
+              value={form.images}
+              onChange={(urls) => set("images", urls)}
+              max={MAX_IMAGES}
             />
-
             {errors.images && (
-              <p className="text-xs text-destructive">{errors.images}</p>
-            )}
-
-            {previewImages.length > 0 ? (
-              <div className="grid grid-cols-3 gap-3 sm:grid-cols-6">
-                {previewImages.map((url) => (
-                  <div
-                    key={url}
-                    className="aspect-4/3 overflow-hidden rounded-lg bg-muted"
-                  >
-                    <ListingImage src={url} alt="" />
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <p className="flex items-center gap-2 text-xs text-muted-foreground">
-                <ImageIcon className="size-4" />
-                Previews will appear here once you paste a URL.
-              </p>
+              <p className="mt-2 text-xs text-destructive">{errors.images}</p>
             )}
           </CardContent>
         </Card>
 
         <Card>
-          <CardContent className="flex flex-wrap items-end justify-between gap-4">
+          <CardHeader>
+            <CardTitle>Maps</CardTitle>
+            <CardDescription>
+              Optional Google Maps embed URLs. In Google Maps choose Share →
+              Embed a map and paste the src URL from the iframe.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent className="flex flex-col gap-4">
             <Field
-              label="Visibility"
+              label="Where it sits"
+              htmlFor="mapLocation"
+              error={errors.mapLocation}
+            >
+              <Textarea
+                id="mapLocation"
+                value={form.mapLocation}
+                onChange={(event) => set("mapLocation", event.target.value)}
+                placeholder="https://www.google.com/maps/embed?pb=…"
+                rows={2}
+                maxLength={1000}
+              />
+            </Field>
+
+            <Field
+              label="Nearby schools"
+              htmlFor="mapSchools"
+              error={errors.mapSchools}
+            >
+              <Textarea
+                id="mapSchools"
+                value={form.mapSchools}
+                onChange={(event) => set("mapSchools", event.target.value)}
+                placeholder="https://www.google.com/maps/embed?pb=…"
+                rows={2}
+                maxLength={1000}
+              />
+            </Field>
+
+            <Field
+              label="Shops & places to eat"
+              htmlFor="mapShops"
+              error={errors.mapShops}
+            >
+              <Textarea
+                id="mapShops"
+                value={form.mapShops}
+                onChange={(event) => set("mapShops", event.target.value)}
+                placeholder="https://www.google.com/maps/embed?pb=…"
+                rows={2}
+                maxLength={1000}
+              />
+            </Field>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>Visibility</CardTitle>
+            <CardDescription>
+              Save it as a draft or submit it to your teacher for approval.
+            </CardDescription>
+          </CardHeader>
+
+          <CardContent>
+            <Field
+              label="Status"
               htmlFor="status"
-              className="min-w-56"
+              className="max-w-xs"
               hint={
-                editing
-                  ? "Leave as-is to keep it where it is."
-                  : "Reviewed listings go live once approved."
+                editing && currentStatus === "active"
+                  ? "This design is live. Submitting again sends it back for review."
+                  : undefined
               }
             >
               <Select
                 items={statusItems}
                 value={form.status}
                 onValueChange={(value) =>
-                  set("status", (value ?? "keep") as FormState["status"])
+                  set("status", (value ?? "pending") as Visibility)
                 }
               >
                 <SelectTrigger id="status" className="w-full">
@@ -811,25 +962,26 @@ export default function ListingForm({ slug }: { slug?: string }) {
                 </SelectContent>
               </Select>
             </Field>
-
-            <div className="flex items-center gap-2">
-              <a
-                href="#/dashboard/listings"
-                className={buttonVariants({ variant: "ghost", size: "lg" })}
-              >
-                Cancel
-              </a>
-              <Button type="submit" size="lg" disabled={submitting}>
-                {submitting ? (
-                  <LoaderCircle className="animate-spin" />
-                ) : (
-                  <Save />
-                )}
-                {editing ? "Save changes" : "Create listing"}
-              </Button>
-            </div>
           </CardContent>
         </Card>
+
+        <div className="flex flex-wrap items-center gap-3">
+          <Button type="submit" size="lg" disabled={submitting}>
+            {submitting ? <LoaderCircle className="animate-spin" /> : <Save />}
+            {submitting
+              ? "Saving…"
+              : editing
+                ? "Save changes"
+                : "Submit design"}
+          </Button>
+
+          <a
+            href="#/dashboard/listings"
+            className={buttonVariants({ variant: "ghost", size: "lg" })}
+          >
+            Cancel
+          </a>
+        </div>
       </form>
     </DashboardLayout>
   );

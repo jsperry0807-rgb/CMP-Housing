@@ -5,6 +5,8 @@ export type RouteName =
   | "login"
   | "signup"
   | "dashboard"
+  | "team-profile"
+  | "teams"
   | "my-listings"
   | "listing-form"
   | "moderation"
@@ -23,6 +25,8 @@ export interface RouteState {
 export function isDashboardRoute(name: RouteName): boolean {
   return (
     name === "dashboard" ||
+    name === "team-profile" ||
+    name === "teams" ||
     name === "my-listings" ||
     name === "listing-form" ||
     name === "moderation"
@@ -37,6 +41,8 @@ export function parseRoute(hash: string): RouteState {
   const [first, second, third, fourth] = segments;
 
   switch (first) {
+    case "home":
+      return { name: "home", query };
     case "login":
       return { name: "login", query };
     case "signup":
@@ -47,6 +53,8 @@ export function parseRoute(hash: string): RouteState {
         : { name: "browse", query };
     case "dashboard":
       if (second === "moderation") return { name: "moderation", query };
+      if (second === "teams") return { name: "teams", query };
+      if (second === "team") return { name: "team-profile", query };
       if (second === "listings") {
         if (!third) return { name: "my-listings", query };
         if (third === "new") return { name: "listing-form", query };
@@ -60,7 +68,8 @@ export function parseRoute(hash: string): RouteState {
       }
       return { name: "dashboard", query };
     default:
-      return { name: "home", query };
+      // The root (`#/`) and any unknown path land on browse.
+      return { name: "browse", query };
   }
 }
 

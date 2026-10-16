@@ -1,10 +1,9 @@
 import {
-  Building2,
   Eye,
+  Home,
   LoaderCircle,
   Pencil,
   PlusCircle,
-  RotateCcw,
   Send,
   Trash2,
 } from "lucide-react";
@@ -27,8 +26,8 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api";
 import {
+  formatCost,
   formatDate,
-  formatPrice,
   listingsApi,
   type Listing,
   type ListingStatus,
@@ -36,17 +35,15 @@ import {
 import { useAsyncData } from "@/lib/use-async-data";
 import { cn } from "@/lib/utils";
 
-/** The statuses an owner is allowed to set on their own listing. */
-type OwnerStatus = "draft" | "pending" | "rented";
+/** The statuses an owner is allowed to set on their own design. */
+type OwnerStatus = "draft" | "pending";
 
-/** Owner-driven status changes, and the toast each one shows. */
+/** Owner-driven status changes, and the button each one shows. */
 const TRANSITIONS: Partial<
   Record<ListingStatus, { to: OwnerStatus; label: string; icon: typeof Send }>
 > = {
   draft: { to: "pending", label: "Submit for review", icon: Send },
   rejected: { to: "pending", label: "Resubmit", icon: Send },
-  active: { to: "rented", label: "Mark as rented", icon: RotateCcw },
-  rented: { to: "pending", label: "Relist", icon: RotateCcw },
 };
 
 export default function MyListings() {
@@ -67,16 +64,12 @@ export default function MyListings() {
     try {
       await listingsApi.update(listing._id, { status: to });
       toast.success(
-        to === "pending"
-          ? "Submitted for review."
-          : to === "rented"
-            ? "Marked as rented."
-            : "Listing updated.",
+        to === "pending" ? "Submitted for review." : "Design updated.",
       );
       reload();
     } catch (error) {
       toast.error(
-        error instanceof Error ? error.message : "Could not update the listing",
+        error instanceof Error ? error.message : "Could not update the design",
       );
     } finally {
       setBusyId(null);
@@ -88,14 +81,14 @@ export default function MyListings() {
     setDeleting(true);
     try {
       await listingsApi.remove(toDelete._id);
-      toast.success("Listing deleted.");
+      toast.success("Design deleted.");
       setToDelete(null);
       reload();
     } catch (error) {
       toast.error(
         error instanceof ApiError
           ? error.message
-          : "Could not delete the listing",
+          : "Could not delete the design",
       );
     } finally {
       setDeleting(false);
@@ -106,15 +99,15 @@ export default function MyListings() {
 
   return (
     <DashboardLayout
-      title="My listings"
-      description="Everything you have posted, in any state."
+      title="Team designs"
+      description="Everything your team has submitted, in any state."
       actions={
         <a
           href="#/dashboard/listings/new"
           className={buttonVariants({ size: "lg" })}
         >
           <PlusCircle />
-          New listing
+          New design
         </a>
       }
     >
@@ -128,16 +121,16 @@ export default function MyListings() {
         <Card className="p-6 text-sm text-muted-foreground">{error}</Card>
       ) : items.length === 0 ? (
         <EmptyState
-          icon={Building2}
-          title="No listings yet"
-          description="Post your first place and it will show up here while it waits for review."
+          icon={Home}
+          title="No designs yet"
+          description="Add your first house design and it will show up here while it waits for your teacher to review it."
           action={
             <a
               href="#/dashboard/listings/new"
               className={buttonVariants({ size: "lg" })}
             >
               <PlusCircle />
-              Create a listing
+              Create a design
             </a>
           }
         />
@@ -147,6 +140,9 @@ export default function MyListings() {
             {items.map((listing) => {
               const transition = TRANSITIONS[listing.status];
               const busy = busyId === listing._id;
+              const city = [listing.address?.city, listing.address?.state]
+                .filter(Boolean)
+                .join(", ");
 
               return (
                 <li
@@ -156,9 +152,12 @@ export default function MyListings() {
                   <a
                     href={`#/listings/${listing.slug}`}
                     className="h-16 w-24 shrink-0 overflow-hidden rounded-lg bg-muted"
-                    aria-label={`View ${listing.title}`}
+                    aria-label={`View ${listing.name}`}
                   >
-                    <ListingImage src={listing.images[0]} alt={listing.title} />
+                    <ListingImage
+                      src={listing.images?.[0]}
+                      alt={listing.name}
+                    />
                   </a>
 
                   <div className="min-w-0 flex-1 basis-full sm:basis-auto">
@@ -167,14 +166,14 @@ export default function MyListings() {
                         href={`#/listings/${listing.slug}`}
                         className="truncate font-medium hover:underline"
                       >
-                        {listing.title}
+                        {listing.name}
                       </a>
                       <StatusBadge status={listing.status} />
                     </div>
 
                     <p className="mt-0.5 text-sm text-muted-foreground">
-                      {formatPrice(listing)} / month · {listing.address.city} ·
-                      updated {formatDate(listing.updatedAt)}
+                      {formatCost(listing.totalCost)} · {city || "—"} · updated{" "}
+                      {formatDate(listing.updatedAt)}
                     </p>
 
                     {listing.status === "rejected" &&
@@ -249,9 +248,9 @@ export default function MyListings() {
       >
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Delete this listing?</DialogTitle>
+            <DialogTitle>Delete this design?</DialogTitle>
             <DialogDescription>
-              {toDelete ? `“${toDelete.title}”` : "This listing"} will be
+              {toDelete ? `“${toDelete.name}”` : "This design"} will be
               permanently removed. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
@@ -277,7 +276,7 @@ export default function MyListings() {
               ) : (
                 <Trash2 />
               )}
-              Delete listing
+              Delete design
             </Button>
           </DialogFooter>
         </DialogContent>

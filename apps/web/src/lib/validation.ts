@@ -2,6 +2,9 @@
 
 export const MIN_PASSWORD_LENGTH = 8;
 
+/** Students sign up with their Erie County Technical School email address. */
+export const SCHOOL_EMAIL_DOMAIN = "ects.org";
+
 export function validateName(value: string): string | undefined {
   if (!value.trim()) return "Name is required";
   if (value.trim().length > 80) return "Name must be 80 characters or fewer";
@@ -13,6 +16,16 @@ export function validateEmail(value: string): string | undefined {
   if (!email) return "Email is required";
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
     return "Enter a valid email address";
+  }
+  return undefined;
+}
+
+/** Signup emails must be on the school domain, on top of the format check. */
+export function validateSchoolEmail(value: string): string | undefined {
+  const format = validateEmail(value);
+  if (format) return format;
+  if (!value.trim().toLowerCase().endsWith(`@${SCHOOL_EMAIL_DOMAIN}`)) {
+    return `Use your @${SCHOOL_EMAIL_DOMAIN} school email address`;
   }
   return undefined;
 }

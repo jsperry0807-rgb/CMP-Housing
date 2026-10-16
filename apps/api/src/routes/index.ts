@@ -4,6 +4,8 @@ import { adminRouter } from "./admin.routes.js";
 import { authRouter } from "./auth.routes.js";
 import { listingRouter } from "./listing.routes.js";
 import { meRouter } from "./me.routes.js";
+import { teamRouter } from "./team.routes.js";
+import { uploadRouter } from "./upload.routes.js";
 
 export const apiRouter = Router();
 
@@ -17,7 +19,9 @@ apiRouter.get("/health", (_req, res) => {
 
 apiRouter.use("/auth", authRouter);
 apiRouter.use("/listings", listingRouter);
+apiRouter.use("/uploads", uploadRouter);
 apiRouter.use("/me", meRouter);
+apiRouter.use("/teams", teamRouter);
 apiRouter.use("/admin", adminRouter);
 
 // Add future routers here, e.g. apiRouter.use("/projects", projectsRouter);

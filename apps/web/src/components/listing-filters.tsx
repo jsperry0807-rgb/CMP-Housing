@@ -1,7 +1,6 @@
 import { Search, X } from "lucide-react";
 import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -14,34 +13,27 @@ import {
 import { SORT_LABELS } from "@/lib/listings";
 import { buildPath, navigate } from "@/lib/router";
 
-const TYPE_ITEMS: Record<string, string> = {
-  any: "Any type",
-  room: "Room",
-  studio: "Studio",
-  apartment: "Apartment",
-  house: "House",
-};
-
-const PRICE_ITEMS: Record<string, string> = {
-  any: "Any price",
-  "300": "Up to €300",
-  "500": "Up to €500",
-  "750": "Up to €750",
-  "1000": "Up to €1,000",
-  "1500": "Up to €1,500",
+const COST_ITEMS: Record<string, string> = {
+  any: "Any budget",
+  "500000": "Up to $500,000",
+  "600000": "Up to $600,000",
+  "700000": "Up to $700,000",
+  "800000": "Up to $800,000",
 };
 
 const BEDROOM_ITEMS: Record<string, string> = {
   any: "Any size",
-  "1": "1+ bedrooms",
   "2": "2+ bedrooms",
   "3": "3+ bedrooms",
+  "4": "4+ bedrooms",
+  "5": "5+ bedrooms",
 };
 
 const SORT_ITEMS: Record<string, string> = {
   newest: SORT_LABELS.newest,
-  "price-asc": SORT_LABELS["price-asc"],
-  "price-desc": SORT_LABELS["price-desc"],
+  "cost-asc": SORT_LABELS["cost-asc"],
+  "cost-desc": SORT_LABELS["cost-desc"],
+  "sqft-desc": SORT_LABELS["sqft-desc"],
 };
 
 function FilterField({
@@ -85,15 +77,7 @@ export default function ListingFilters({ query }: { query: URLSearchParams }) {
     set("q", text.trim());
   }
 
-  function reset() {
-    navigate("/listings");
-  }
-
-  const hasFilters = ["q", "type", "maxPrice", "bedrooms", "furnished"].some(
-    (key) => query.has(key),
-  );
-
-  const furnish = query.get("furnished") === "true";
+  const hasFilters = ["q", "maxCost", "beds"].some((key) => query.has(key));
 
   return (
     <div className="rounded-xl border bg-card p-4">
@@ -103,8 +87,8 @@ export default function ListingFilters({ query }: { query: URLSearchParams }) {
           <Input
             value={text}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Search by city or keyword…"
-            aria-label="Search listings"
+            placeholder="Search by team, house name, city or keyword…"
+            aria-label="Search designs"
             className="pl-8"
           />
         </div>
@@ -113,37 +97,18 @@ export default function ListingFilters({ query }: { query: URLSearchParams }) {
         </Button>
       </form>
 
-      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-3 lg:grid-cols-5">
-        <FilterField label="Type">
+      <div className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <FilterField label="Max cost">
           <Select
-            items={TYPE_ITEMS}
-            value={query.get("type") ?? "any"}
-            onValueChange={(value) => set("type", value)}
+            items={COST_ITEMS}
+            value={query.get("maxCost") ?? "any"}
+            onValueChange={(value) => set("maxCost", value)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
-              {Object.entries(TYPE_ITEMS).map(([value, label]) => (
-                <SelectItem key={value} value={value}>
-                  {label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </FilterField>
-
-        <FilterField label="Max price">
-          <Select
-            items={PRICE_ITEMS}
-            value={query.get("maxPrice") ?? "any"}
-            onValueChange={(value) => set("maxPrice", value)}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {Object.entries(PRICE_ITEMS).map(([value, label]) => (
+              {Object.entries(COST_ITEMS).map(([value, label]) => (
                 <SelectItem key={value} value={value}>
                   {label}
                 </SelectItem>
@@ -155,8 +120,8 @@ export default function ListingFilters({ query }: { query: URLSearchParams }) {
         <FilterField label="Bedrooms">
           <Select
             items={BEDROOM_ITEMS}
-            value={query.get("bedrooms") ?? "any"}
-            onValueChange={(value) => set("bedrooms", value)}
+            value={query.get("beds") ?? "any"}
+            onValueChange={(value) => set("beds", value)}
           >
             <SelectTrigger className="w-full">
               <SelectValue />
@@ -192,27 +157,19 @@ export default function ListingFilters({ query }: { query: URLSearchParams }) {
           </Select>
         </FilterField>
 
-        <FilterField label="Furnishing">
-          <label className="flex h-8 items-center gap-2 text-sm">
-            <Checkbox
-              checked={furnish}
-              onCheckedChange={(checked) =>
-                set("furnished", checked ? "true" : "")
-              }
-            />
-            Furnished only
-          </label>
-        </FilterField>
-      </div>
-
-      {hasFilters && (
-        <div className="mt-3 flex justify-end">
-          <Button type="button" variant="ghost" size="sm" onClick={reset}>
-            <X />
-            Clear filters
-          </Button>
+        <div className="flex items-end">
+          {hasFilters && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={() => navigate("/listings")}
+            >
+              <X />
+              Clear filters
+            </Button>
+          )}
         </div>
-      )}
+      </div>
     </div>
   );
 }

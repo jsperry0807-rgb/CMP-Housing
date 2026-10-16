@@ -1,15 +1,6 @@
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import TeamAvatar from "@/components/team-avatar";
 import type { ApiUser } from "@/lib/api";
 import { cn } from "@/lib/utils";
-
-function initials(name: string): string {
-  const parts = name.trim().split(/\s+/).filter(Boolean);
-  if (parts.length === 0) return "?";
-
-  const first = parts[0]?.[0] ?? "";
-  const last = parts.length > 1 ? (parts[parts.length - 1]?.[0] ?? "") : "";
-  return (first + last).toUpperCase();
-}
 
 interface UserChipProps {
   user: ApiUser;
@@ -17,21 +8,20 @@ interface UserChipProps {
   showEmail?: boolean;
 }
 
+/** The signed-in account, presented under its team name when it has one. */
 export default function UserChip({
   user,
   className,
   showEmail = false,
 }: UserChipProps) {
+  const label = user.team?.name?.trim() || user.name;
+
   return (
     <div className={cn("flex min-w-0 items-center gap-2", className)}>
-      <Avatar>
-        <AvatarFallback className="bg-gradient-to-br from-indigo-500 to-violet-500 font-semibold text-white">
-          {initials(user.name)}
-        </AvatarFallback>
-      </Avatar>
+      <TeamAvatar name={label} logo={user.team?.logo} />
 
       <div className="min-w-0">
-        <p className="truncate text-sm font-medium">{user.name}</p>
+        <p className="truncate text-sm font-medium">{label}</p>
         {showEmail && (
           <p className="truncate text-xs text-muted-foreground">{user.email}</p>
         )}

@@ -1,10 +1,20 @@
 export type ApiRole = "user" | "admin";
 
+/** The team a student belongs to, as returned on an authenticated user. */
+export interface ApiTeam {
+  id: string;
+  name: string;
+  /** Public URL of the team logo. */
+  logo?: string;
+}
+
 export interface ApiUser {
   id: string;
   name: string;
   email: string;
   role: ApiRole;
+  /** The student team this account belongs to, assigned by a teacher. */
+  team?: ApiTeam | null;
   createdAt: string;
   updatedAt: string;
 }
@@ -18,6 +28,10 @@ export interface SignupInput {
 export interface LoginInput {
   email: string;
   password: string;
+}
+
+export interface ProfileInput {
+  name?: string;
 }
 
 interface ApiErrorBody {
@@ -60,13 +74,21 @@ export class ApiError extends Error {
 }
 
 export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const { headers, ...rest } = init ?? {};
+  const isFormData =
+    typeof FormData !== "undefined" && rest.body instanceof FormData;
+
   let response: Response;
 
   try {
     response = await fetch(path, {
       credentials: "include",
-      headers: { "Content-Type": "application/json" },
-      ...init,
+      ...rest,
+      headers: {
+        // A FormData body must keep the browser-generated multipart boundary.
+        ...(isFormData ? {} : { "Content-Type": "application/json" }),
+        ...(headers as Record<string, string> | undefined),
+      },
     });
   } catch {
     throw new ApiError(0, "Could not reach the API. Is apps/api running?");
@@ -102,6 +124,12 @@ export const authApi = {
   login: (input: LoginInput) =>
     request<{ user: ApiUser }>("/api/auth/login", {
       method: "POST",
+      body: JSON.stringify(input),
+    }),
+
+  updateMe: (input: ProfileInput) =>
+    request<{ user: ApiUser }>("/api/auth/me", {
+      method: "PATCH",
       body: JSON.stringify(input),
     }),
 

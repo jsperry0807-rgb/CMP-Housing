@@ -19,8 +19,11 @@ interface AuthContextValue {
   /** True while the initial session check is in flight. */
   loading: boolean;
   login: (input: LoginInput) => Promise<void>;
-  signup: (input: SignupInput) => Promise<void>;
+  /** Resolves with the new account after signing up. */
+  signup: (input: SignupInput) => Promise<ApiUser>;
   logout: () => Promise<void>;
+  /** Replaces the cached user after a profile update. */
+  setUser: (user: ApiUser) => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -58,6 +61,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signup = useCallback(async (input: SignupInput) => {
     const { user: current } = await authApi.signup(input);
     setUser(current);
+    return current;
   }, []);
 
   const logout = useCallback(async () => {
@@ -69,7 +73,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const value = useMemo<AuthContextValue>(
-    () => ({ user, loading, login, signup, logout }),
+    () => ({ user, loading, login, signup, logout, setUser }),
     [user, loading, login, signup, logout],
   );
 
