@@ -3,6 +3,7 @@ import {
   Bath,
   BedDouble,
   CalendarDays,
+  Calculator,
   Home,
   Landmark,
   MapPin,
@@ -33,6 +34,7 @@ import {
   similarListings,
   type ListingEntry,
 } from "@/lib/listings";
+import { buildPath } from "@/lib/router";
 import { useAsyncData } from "@/lib/use-async-data";
 import { cn } from "@/lib/utils";
 
@@ -390,6 +392,20 @@ export default function ListingDetail({ slug }: { slug: string }) {
                       )}
                     </dl>
                   )}
+
+                  <a
+                    href={`#${buildPath("/calculator", {
+                      price: listing.totalCost,
+                      tax: listing.propertyTax,
+                    })}`}
+                    className={cn(
+                      buttonVariants({ variant: "outline" }),
+                      "w-full",
+                    )}
+                  >
+                    <Calculator />
+                    Estimate monthly payment
+                  </a>
 
                   {team && (
                     <div className="flex items-center gap-3 border-t pt-4">

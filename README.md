@@ -193,6 +193,7 @@ string, which makes a filtered list easy to share.
 | `#/`                              | Browse — the main page (unknown paths land here too)   |
 | `#/listings`                      | Browse; see the query parameters below                 |
 | `#/listings/:slug`                | Design detail: gallery, specs, highlights, rooms, maps |
+| `#/calculator`                    | Mortgage calculator; `?price=&tax=` prefill the form   |
 | `#/home`                          | Landing hero: search and featured designs              |
 | `#/login`, `#/signup`             | Auth                                                   |
 | `#/dashboard`                     | Signed-in overview: your counts and recent designs     |
@@ -205,6 +206,10 @@ string, which makes a filtered list easy to share.
 
 Browse reads `q`, `maxCost`, `beds` and `sort` from the query string, so
 `#/listings?q=barn&maxCost=600000` is a valid, shareable URL.
+
+The mortgage calculator reads `price` and `tax` from the query string, so a
+design's detail page can link to `#/calculator?price=450000&tax=5400` with its
+numbers already filled in.
 
 Everything under `#/dashboard` requires a session, and `#/dashboard/teams` and
 `#/dashboard/moderation` additionally require the `admin` role — `App.tsx`

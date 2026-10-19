@@ -10,6 +10,7 @@ import ListingDetail from "@/pages/listing-detail";
 import ListingForm from "@/pages/listing-form";
 import Login from "@/pages/login";
 import Moderation from "@/pages/moderation";
+import MortgageCalculator from "@/pages/mortgage-calculator";
 import MyListings from "@/pages/my-listings";
 import Signup from "@/pages/signup";
 import TeamProfile from "@/pages/team-profile";
@@ -83,6 +84,12 @@ export default function App() {
         <SiteLayout>
           {/* Keyed by slug so gallery state resets between listings. */}
           <ListingDetail key={route.slug} slug={route.slug!} />
+        </SiteLayout>
+      );
+    case "calculator":
+      return (
+        <SiteLayout>
+          <MortgageCalculator query={route.query} />
         </SiteLayout>
       );
     default:

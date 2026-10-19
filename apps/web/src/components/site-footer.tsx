@@ -15,6 +15,12 @@ export default function SiteFooter() {
           </a>
           <a
             className="transition-colors hover:text-foreground"
+            href="#/calculator"
+          >
+            Mortgage calculator
+          </a>
+          <a
+            className="transition-colors hover:text-foreground"
             href="#/signup"
           >
             Submit a design

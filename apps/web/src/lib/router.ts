@@ -11,7 +11,8 @@ export type RouteName =
   | "listing-form"
   | "moderation"
   | "browse"
-  | "listing";
+  | "listing"
+  | "calculator";
 
 export interface RouteState {
   name: RouteName;
@@ -47,6 +48,8 @@ export function parseRoute(hash: string): RouteState {
       return { name: "login", query };
     case "signup":
       return { name: "signup", query };
+    case "calculator":
+      return { name: "calculator", query };
     case "listings":
       return second
         ? { name: "listing", slug: decodeURIComponent(second), query }
