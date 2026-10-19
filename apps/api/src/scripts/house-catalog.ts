@@ -6,14 +6,18 @@
  *                        and marked `not-for-sale`
  *
  * Photos are read from `apps/api/seed-images/<image path>/` when that folder
- * exists (last year's layout: 01.jpg, 02.jpg, …) and copied into `uploads/`
- * under stable slug names, so a re-seed never duplicates files.
+ * exists (last year's layout: 01.jpg, 02.jpg, …) and stored in MongoDB
+ * (GridFS) under stable slug names, so a re-seed never duplicates files.
  */
-import { copyFileSync, existsSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync } from "node:fs";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { slugify } from "../lib/slug.js";
-import { UPLOAD_DIR, uploadUrl } from "../lib/uploads.js";
+import {
+  contentTypeForExtension,
+  storeLocalUpload,
+  uploadUrl,
+} from "../lib/uploads.js";
 import type { IListingEntry } from "../models/listing.js";
 
 export interface SeedHouse {
@@ -452,17 +456,16 @@ export function houseSlug(name: string): string {
 }
 
 /**
- * Photos for one house. Uses `seed-images/<image path>/` when present, copying
- * each file into the uploads folder under a stable name. When there is no
- * folder, `placeholders` decides whether to fall back to picsum.photos (the
- * demo seed) or to an empty gallery (the historical seed, which waits for real
- * photos).
+ * Photos for one house. Uses `seed-images/<image path>/` when present, storing
+ * each file in GridFS under a stable name. When there is no folder,
+ * `placeholders` decides whether to fall back to picsum.photos (the demo seed)
+ * or to an empty gallery (the historical seed, which waits for real photos).
  */
-export function imagesFor(
+export async function imagesFor(
   imagePath: string,
   slug: string,
   { placeholders = true }: { placeholders?: boolean } = {},
-): string[] {
+): Promise<string[]> {
   const dir = join(SEED_IMAGES_DIR, imagePath);
   const files = existsSync(dir)
     ? readdirSync(dir)
@@ -479,9 +482,15 @@ export function imagesFor(
     );
   }
 
-  return files.map((file, index) => {
+  const urls: string[] = [];
+  for (const [index, file] of files.entries()) {
     const target = `${slug}-${String(index + 1).padStart(2, "0")}${extname(file).toLowerCase()}`;
-    copyFileSync(join(dir, file), join(UPLOAD_DIR, target));
-    return uploadUrl(target);
-  });
+    await storeLocalUpload(
+      join(dir, file),
+      target,
+      contentTypeForExtension(extname(file)),
+    );
+    urls.push(uploadUrl(target));
+  }
+  return urls;
 }

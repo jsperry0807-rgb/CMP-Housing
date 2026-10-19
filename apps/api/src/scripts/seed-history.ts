@@ -48,7 +48,9 @@ async function main(): Promise<void> {
 
   for (const house of HOUSES) {
     const slug = houseSlug(house.name);
-    const images = imagesFor(house.imagePath, slug, { placeholders: false });
+    const images = await imagesFor(house.imagePath, slug, {
+      placeholders: false,
+    });
     if (images.length === 0) missingImages += 1;
 
     const listing = await Listing.create({

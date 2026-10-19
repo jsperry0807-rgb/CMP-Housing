@@ -1,6 +1,7 @@
 /**
  * Wipes all application data, leaving a clean slate:
- * houses (listings), teams, and accounts (students and teachers).
+ * houses (listings), teams, accounts (students and teachers), and every
+ * uploaded photo, logo and 3D model stored in GridFS.
  *
  *   pnpm --filter api db:wipe -- --yes
  *
@@ -14,7 +15,7 @@ import { User } from "../models/user.js";
 
 if (!process.argv.includes("--yes")) {
   console.error(
-    "This deletes every house, team and account and cannot be undone.\n" +
+    "This deletes every house, team, account and uploaded file and cannot be undone.\n" +
       "Re-run with --yes to confirm:\n" +
       "  pnpm --filter api db:wipe -- --yes",
   );
@@ -23,14 +24,18 @@ if (!process.argv.includes("--yes")) {
 
 await connectDatabase();
 
-const [listings, teams, users] = await Promise.all([
+const [listings, teams, users, uploadFiles] = await Promise.all([
   Listing.deleteMany({}),
   Team.deleteMany({}),
   User.deleteMany({}),
+  // GridFS keeps uploads in two collections: file metadata and file chunks.
+  mongoose.connection.db!.collection("uploads.files").deleteMany({}),
+  mongoose.connection.db!.collection("uploads.chunks").deleteMany({}),
 ]);
 
 console.log(
-  `Wiped ${listings.deletedCount} house(s), ${teams.deletedCount} team(s) and ${users.deletedCount} account(s).`,
+  `Wiped ${listings.deletedCount} house(s), ${teams.deletedCount} team(s), ` +
+    `${users.deletedCount} account(s) and ${uploadFiles.deletedCount} uploaded file(s).`,
 );
 
 await mongoose.disconnect();

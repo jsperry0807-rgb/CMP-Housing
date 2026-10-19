@@ -187,7 +187,7 @@ async function main(): Promise<void> {
       highlights: house.highlights,
       interior: house.interior,
       roomTypes: house.roomTypes,
-      images: imagesFor(house.imagePath, slug),
+      images: await imagesFor(house.imagePath, slug),
       status: "active",
       owner,
       team,

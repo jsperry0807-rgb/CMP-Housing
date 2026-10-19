@@ -1,16 +1,14 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
 import { Router } from "express";
 import multer from "multer";
 import { HttpError } from "../lib/http-error.js";
 import {
+  deleteUpload,
   imageUpload,
   isSafeFilename,
   MAX_IMAGE_BYTES,
   MAX_IMAGES,
   MAX_MODEL_BYTES,
   modelUpload,
-  UPLOAD_DIR,
   uploadUrl,
 } from "../lib/uploads.js";
 import { requireAuth } from "../middleware/auth.js";
@@ -87,18 +85,14 @@ uploadRouter.post("/model", (req, res, next) => {
   });
 });
 
-/** Removes a previously uploaded file. */
-uploadRouter.delete("/:name", (req, res) => {
+/** Removes a previously uploaded file from GridFS. */
+uploadRouter.delete("/:name", async (req, res) => {
   const name = String(req.params.name);
   if (!isSafeFilename(name)) {
     throw new HttpError(400, "Invalid file name");
   }
 
-  const target = join(UPLOAD_DIR, name);
-  if (!target.startsWith(UPLOAD_DIR)) {
-    throw new HttpError(400, "Invalid file name");
-  }
-  if (existsSync(target)) unlinkSync(target);
+  await deleteUpload(name);
 
   res.status(204).end();
 });

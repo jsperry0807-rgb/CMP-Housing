@@ -10,7 +10,7 @@ reviews it before it goes live.
 ### Apps and Packages
 
 - `web`: a [React 19](https://react.dev) + [Vite](https://vite.dev) + [Tailwind CSS 4](https://tailwindcss.com) app with [shadcn/ui](https://ui.shadcn.com) components — browse as the main page (`#/`), design detail (`#/listings/:slug`), auth (`#/login`, `#/signup`), and a private dashboard (`#/dashboard`) where teams submit designs and staff moderate them, manage teams, and admins manage accounts
-- `api`: an [Express 5](https://expressjs.com) API with [Mongoose](https://mongoosejs.com) (MongoDB), JWT auth in httpOnly cookies, bcrypt password hashing, and `multer` file uploads
+- `api`: an [Express 5](https://expressjs.com) API with [Mongoose](https://mongoosejs.com) (MongoDB), JWT auth in httpOnly cookies, bcrypt password hashing, and `multer` file uploads stored in MongoDB (GridFS)
 - `@repo/ui`: a stub component and utility library
 - `@repo/eslint-config`: shared ESLint configuration
 - `@repo/typescript-config`: shared `tsconfig.json` files
@@ -36,6 +36,18 @@ pnpm dev
 
 `pnpm dev` runs both apps. API requests from the web app go to `/api/*` and
 uploaded photos to `/uploads/*`; Vite proxies both to `apps/api` in development.
+
+## Deployment
+
+The site deploys to [Railway](https://railway.app) as one service: it builds the
+web app and runs the API, which also serves the built site (same origin, so the
+auth cookie just works). Uploaded files are stored in MongoDB (GridFS), so
+nothing depends on the local disk. See [DEPLOYMENT.md](./DEPLOYMENT.md) for the
+full walkthrough — the short version:
+
+```sh
+git push -u origin main   # Railway deploys from GitHub, via railway.toml
+```
 
 ## The domain
 
@@ -174,9 +186,10 @@ pages }`.
 | `POST`   | `/api/uploads`       | signed in | Multipart `images` field, up to 15 files, 8 MB each |
 | `DELETE` | `/api/uploads/:name` | signed in | Delete a file this app uploaded                     |
 
-Files are written to `apps/api/uploads/` and served from `/uploads/*`. Only
-image MIME types are accepted and filenames are generated, so the delete route
-guards against path traversal. `apps/api/uploads/` is gitignored.
+Files are stored in MongoDB (GridFS, the `uploads` bucket) and streamed from
+`/uploads/*`; nothing is written to the local disk, so uploads survive redeploys
+(Render's filesystem is ephemeral). Only image MIME types are accepted and
+filenames are generated, so the delete route guards against path traversal.
 
 ## Demo data
 
@@ -193,8 +206,9 @@ pnpm --filter api db:wipe -- --yes                 # delete every house, team an
 `NODE_ENV=production`.
 
 `db:wipe` empties the `listings`, `teams` and `users` collections — houses,
-accounts (students and teachers) and teams — leaving a clean slate. It needs
-`--yes` because it cannot be undone, and it does not touch uploaded photos.
+accounts (students and teachers) and teams — and deletes every uploaded file
+stored in GridFS, leaving a clean slate. It needs `--yes` because it cannot be
+undone.
 
 `db:seed-history` adds the nine houses students designed before the site
 existed, all owned by a single `unknown@students.ects.org` account ("Unknown
@@ -230,8 +244,8 @@ as `admin@example.com`, open **Manage teams**, and put them on a team.
 Real photos are the nicest, but they're optional: drop them in
 `apps/api/seed-images/<folder>/` and set that folder as the design's `imagePath`
 in `apps/api/src/scripts/house-catalog.ts` (the shared house data, used by both
-seeders). A seeder copies them into `uploads/` under stable slug names on every
-run, so reseeding does not duplicate files. When a folder is missing, `db:seed`
+seeders). A seeder stores them in GridFS under stable slug names on every run,
+so reseeding does not duplicate files. When a folder is missing, `db:seed`
 falls back to [picsum.photos](https://picsum.photos) placeholders (which need a
 network connection to load), while `db:seed-history` leaves the gallery empty
 until real photos are added — drop them in and re-run. `seed-images/` is

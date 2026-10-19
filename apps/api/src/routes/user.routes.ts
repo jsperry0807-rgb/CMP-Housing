@@ -1,10 +1,8 @@
-import { existsSync, unlinkSync } from "node:fs";
-import { join } from "node:path";
 import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import { z } from "zod";
 import { HttpError } from "../lib/http-error.js";
-import { isSafeFilename, UPLOAD_DIR } from "../lib/uploads.js";
+import { deleteUpload, isSafeFilename } from "../lib/uploads.js";
 import { requireAdmin, requireAuth } from "../middleware/auth.js";
 import { Listing } from "../models/listing.js";
 import { USER_ROLES, User } from "../models/user.js";
@@ -63,14 +61,13 @@ async function ensureNotLastAdmin(): Promise<void> {
 }
 
 /** Best-effort removal of the photos uploaded for a set of designs. */
-function removeUploadedImages(images: string[]): void {
+async function removeUploadedImages(images: string[]): Promise<void> {
   for (const url of images) {
     if (!url.startsWith("/uploads/")) continue;
     const filename = url.slice("/uploads/".length);
     if (!isSafeFilename(filename)) continue;
     try {
-      const path = join(UPLOAD_DIR, filename);
-      if (existsSync(path)) unlinkSync(path);
+      await deleteUpload(filename);
     } catch {
       // Leave the file behind rather than failing the whole deletion.
     }
@@ -134,9 +131,9 @@ userRouter.delete("/:id", async (req, res) => {
 
   const owned = await Listing.find({ owner: user._id }).select("images model");
   await Listing.deleteMany({ owner: user._id });
-  removeUploadedImages(owned.flatMap((listing) => listing.images ?? []));
+  await removeUploadedImages(owned.flatMap((listing) => listing.images ?? []));
   // The 3D model, when present, has its own file to clean up.
-  removeUploadedImages(
+  await removeUploadedImages(
     owned.flatMap((listing) => (listing.model ? [listing.model] : [])),
   );
 

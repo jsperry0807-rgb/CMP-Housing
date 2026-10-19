@@ -1,0 +1,16 @@
+# Railway configuration for ECTS Housing.
+#
+# One service: builds the web app and runs the API, which also serves the
+# built site (same origin, so the auth cookie needs no cross-origin setup).
+# Uploads are stored in MongoDB (GridFS), so no volume is needed.
+# Full walkthrough in DEPLOYMENT.md.
+[build]
+builder = "nixpacks"
+buildCommand = "corepack enable && pnpm install --frozen-lockfile && turbo run build --filter=api --filter=web"
+
+[deploy]
+startCommand = "node apps/api/dist/index.js"
+healthcheckPath = "/api/health"
+healthcheckTimeout = 120
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 10
