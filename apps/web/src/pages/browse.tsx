@@ -27,6 +27,7 @@ function parseBrowseParams(query: URLSearchParams): BrowseParams {
     maxCost: toNumber(query.get("maxCost")),
     minCost: toNumber(query.get("minCost")),
     beds: toNumber(query.get("beds")),
+    forSale: query.get("forSale") === "true" ? true : undefined,
     sort: SORTS.includes(sort as SortOption) ? (sort as SortOption) : undefined,
     page: toNumber(query.get("page")) ?? 1,
     limit: 12,
@@ -36,6 +37,16 @@ function parseBrowseParams(query: URLSearchParams): BrowseParams {
 export default function Browse({ query }: { query: URLSearchParams }) {
   const params = parseBrowseParams(query);
   const key = query.toString();
+
+  const forSale = params.forSale === true;
+
+  function setForSale(value: boolean) {
+    const next = new URLSearchParams(query);
+    if (value) next.set("forSale", "true");
+    else next.delete("forSale");
+    next.delete("page");
+    navigate(buildPath("/listings", Object.fromEntries(next)));
+  }
 
   const { data, loading, error } = useAsyncData(
     () => listingsApi.browse(params),
@@ -58,6 +69,27 @@ export default function Browse({ query }: { query: URLSearchParams }) {
         <p className="mt-1 text-sm text-muted-foreground">
           Every house designed by an ECTS team.
         </p>
+      </div>
+
+      <div className="mt-6 flex flex-wrap items-center gap-2">
+        <Button
+          type="button"
+          variant={forSale ? "outline" : "default"}
+          size="sm"
+          onClick={() => setForSale(false)}
+          aria-pressed={!forSale}
+        >
+          All designs
+        </Button>
+        <Button
+          type="button"
+          variant={forSale ? "default" : "outline"}
+          size="sm"
+          onClick={() => setForSale(true)}
+          aria-pressed={forSale}
+        >
+          For sale only
+        </Button>
       </div>
 
       <div className="mt-6">

@@ -10,6 +10,7 @@ export type RouteName =
   | "listing-form"
   | "moderation"
   | "users"
+  | "presentation"
   | "browse"
   | "listing"
   | "calculator";
@@ -49,6 +50,8 @@ export function parseRoute(hash: string): RouteState {
       return { name: "signup", query };
     case "calculator":
       return { name: "calculator", query };
+    case "presentation":
+      return { name: "presentation", query };
     case "listings":
       return second
         ? { name: "listing", slug: decodeURIComponent(second), query }
@@ -57,6 +60,7 @@ export function parseRoute(hash: string): RouteState {
       if (second === "moderation") return { name: "moderation", query };
       if (second === "teams") return { name: "teams", query };
       if (second === "users") return { name: "users", query };
+      if (second === "presentation") return { name: "presentation", query };
       if (second === "team") return { name: "team-profile", query };
       if (second === "listings") {
         if (!third) return { name: "my-listings", query };

@@ -56,7 +56,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
     password: {
       type: String,
       required: true,
-      minlength: 8,
+      minlength: 1,
       select: false,
     },
     role: {

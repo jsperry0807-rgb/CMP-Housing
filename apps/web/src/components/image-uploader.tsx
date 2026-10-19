@@ -1,5 +1,11 @@
-import { ImagePlus, LoaderCircle, X } from "lucide-react";
-import { useRef, useState, type ChangeEvent } from "react";
+import {
+  ImagePlus,
+  LoaderCircle,
+  X,
+  ChevronLeft,
+  ChevronRight,
+} from "lucide-react";
+import { useRef, useState, type ChangeEvent, type DragEvent } from "react";
 import ListingImage from "@/components/listing-image";
 import { Button } from "@/components/ui/button";
 import { ApiError } from "@/lib/api";
@@ -25,6 +31,16 @@ export default function ImageUploader({
   const inputRef = useRef<HTMLInputElement>(null);
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
+
+  function move(from: number, to: number) {
+    if (from === to || from < 0 || to < 0) return;
+    const next = [...value];
+    const [item] = next.splice(from, 1);
+    next.splice(to, 0, item);
+    onChange(next);
+  }
 
   async function handleSelect(event: ChangeEvent<HTMLInputElement>) {
     const files = Array.from(event.target.files ?? []);
@@ -65,6 +81,30 @@ export default function ImageUploader({
     if (url.startsWith("/uploads/")) {
       uploadApi.remove(url.slice("/uploads/".length)).catch(() => {});
     }
+  }
+
+  function handleDragStart(event: DragEvent<HTMLDivElement>, index: number) {
+    setDragIndex(index);
+    event.dataTransfer.effectAllowed = "move";
+    event.dataTransfer.setData("text/plain", String(index));
+  }
+
+  function handleDragOver(event: DragEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    setOverIndex(index);
+  }
+
+  function handleDrop(event: DragEvent<HTMLDivElement>, index: number) {
+    event.preventDefault();
+    const from = dragIndex ?? Number(event.dataTransfer.getData("text/plain"));
+    if (Number.isInteger(from)) move(from, index);
+    setDragIndex(null);
+    setOverIndex(null);
+  }
+
+  function handleDragEnd() {
+    setDragIndex(null);
+    setOverIndex(null);
   }
 
   const full = value.length >= max;
@@ -108,7 +148,18 @@ export default function ImageUploader({
           {value.map((url, index) => (
             <div
               key={url}
-              className="group relative aspect-4/3 overflow-hidden rounded-lg bg-muted"
+              draggable={value.length > 1}
+              onDragStart={(event) => handleDragStart(event, index)}
+              onDragOver={(event) => handleDragOver(event, index)}
+              onDrop={(event) => handleDrop(event, index)}
+              onDragEnd={handleDragEnd}
+              className={`group relative aspect-4/3 overflow-hidden rounded-lg bg-muted transition ${
+                dragIndex === index ? "opacity-40" : ""
+              } ${
+                overIndex === index && dragIndex !== index
+                  ? "ring-2 ring-primary"
+                  : ""
+              }`}
             >
               <ListingImage src={url} alt="" />
 
@@ -126,6 +177,29 @@ export default function ImageUploader({
               >
                 <X className="size-3.5" />
               </button>
+
+              {value.length > 1 && (
+                <div className="absolute bottom-1 left-1 flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                  <button
+                    type="button"
+                    onClick={() => move(index, index - 1)}
+                    disabled={index === 0}
+                    aria-label={`Move photo ${index + 1} earlier`}
+                    className="grid size-6 place-items-center rounded-full bg-background/85 text-foreground backdrop-blur disabled:opacity-40"
+                  >
+                    <ChevronLeft className="size-3.5" />
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => move(index, index + 1)}
+                    disabled={index === value.length - 1}
+                    aria-label={`Move photo ${index + 1} later`}
+                    className="grid size-6 place-items-center rounded-full bg-background/85 text-foreground backdrop-blur disabled:opacity-40"
+                  >
+                    <ChevronRight className="size-3.5" />
+                  </button>
+                </div>
+              )}
             </div>
           ))}
         </div>

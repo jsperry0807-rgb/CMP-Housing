@@ -94,6 +94,7 @@ export interface BrowseParams {
   minCost?: number;
   maxCost?: number;
   beds?: number;
+  forSale?: boolean;
   sort?: SortOption;
   page?: number;
   limit?: number;

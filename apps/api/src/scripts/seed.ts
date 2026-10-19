@@ -57,6 +57,8 @@ interface DemoAccount {
   name: string;
   email: string;
   role: "student" | "admin";
+  /** Optional override for the shared demo password (e.g. a short test password). */
+  password?: string;
   /** Key into `TEAMS`, for accounts a teacher assigns to a team. */
   teamKey?: keyof typeof TEAMS;
 }
@@ -72,6 +74,7 @@ const ACCOUNTS: DemoAccount[] = [
     name: "Mr. Hartley",
     email: "admin@example.com",
     role: "admin",
+    password: "admin1234!",
   },
   {
     name: "Sam Rivera",
@@ -95,6 +98,9 @@ async function upsertAccount(account: DemoAccount, teamId?: string) {
     existing.name = account.name;
     existing.role = account.role;
     existing.team = teamId ? new mongoose.Types.ObjectId(teamId) : undefined;
+    if (account.password) {
+      existing.password = account.password;
+    }
     await existing.save();
     return existing;
   }
@@ -102,7 +108,7 @@ async function upsertAccount(account: DemoAccount, teamId?: string) {
   return User.create({
     name: account.name,
     email: account.email,
-    password: DEMO_PASSWORD,
+    password: account.password ?? DEMO_PASSWORD,
     role: account.role,
     ...(teamId ? { team: teamId } : {}),
   });

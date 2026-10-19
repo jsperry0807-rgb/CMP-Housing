@@ -12,6 +12,7 @@ import Login from "@/pages/login";
 import Moderation from "@/pages/moderation";
 import MortgageCalculator from "@/pages/mortgage-calculator";
 import MyListings from "@/pages/my-listings";
+import Presentation from "@/pages/presentation";
 import Signup from "@/pages/signup";
 import TeamProfile from "@/pages/team-profile";
 import Teams from "@/pages/teams";
@@ -75,6 +76,12 @@ export default function App() {
       return isStaff(user) ? <Moderation /> : <FullPageLoader />;
     case "users":
       return isAdmin(user) ? <Users /> : <FullPageLoader />;
+    case "presentation":
+      return (
+        <SiteLayout>
+          <Presentation />
+        </SiteLayout>
+      );
     case "browse":
       return (
         <SiteLayout>

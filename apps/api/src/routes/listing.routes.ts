@@ -76,6 +76,8 @@ const browseQuerySchema = z.object({
   minCost: z.coerce.number().min(0).optional(),
   maxCost: z.coerce.number().min(0).optional(),
   beds: z.coerce.number().int().min(0).optional(),
+  forSale: z.coerce.boolean().optional(),
+  sale: z.enum(["for-sale", "all"]).optional(),
   sort: z
     .enum(["newest", "cost-asc", "cost-desc", "sqft-desc"])
     .default("newest"),
@@ -169,10 +171,15 @@ listingRouter.get("/", async (req, res) => {
     throw new HttpError(400, "Invalid query", parsed.error.issues);
   }
 
-  const { q, city, minCost, maxCost, beds, sort, page, limit } = parsed.data;
+  const { q, city, minCost, maxCost, beds, forSale, sale, sort, page, limit } =
+    parsed.data;
+
+  const forSaleOnly = forSale === true || sale === "for-sale";
 
   const filter: QueryFilter<IListing> = {
-    status: { $in: PUBLIC_LISTING_STATUSES },
+    status: {
+      $in: forSaleOnly ? ["active"] : PUBLIC_LISTING_STATUSES,
+    },
   };
 
   if (q) {

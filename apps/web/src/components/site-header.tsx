@@ -28,6 +28,12 @@ export default function SiteHeader() {
             >
               Calculator
             </a>
+            <a
+              href="#/presentation"
+              className={cn(buttonVariants({ variant: "ghost" }), "text-sm")}
+            >
+              Presentation
+            </a>
           </nav>
         </div>
 

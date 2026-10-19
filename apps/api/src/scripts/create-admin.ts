@@ -44,8 +44,14 @@ const existing = await User.findOne({ email });
 
 if (existing) {
   existing.role = "admin";
+  if (chosenPassword) {
+    existing.password = chosenPassword;
+  }
   await existing.save();
   console.log(`${existing.email} already existed — it is now an admin.`);
+  if (chosenPassword) {
+    console.log("Password updated.");
+  }
 } else {
   const password = chosenPassword || generatePassword();
   const user = await User.create({
