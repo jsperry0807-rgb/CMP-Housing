@@ -1,7 +1,6 @@
 import { ChevronLeft, ChevronRight, SearchX } from "lucide-react";
 import EmptyState from "@/components/empty-state";
 import ListingCard from "@/components/listing-card";
-import ListingFilters from "@/components/listing-filters";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
@@ -57,13 +56,8 @@ export default function Browse({ query }: { query: URLSearchParams }) {
           Browse student designs
         </h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Every house designed by an ECTS team, filterable by cost, size and
-          keyword.
+          Every house designed by an ECTS team.
         </p>
-      </div>
-
-      <div className="mt-6">
-        <ListingFilters query={query} />
       </div>
 
       <div className="mt-6">
@@ -90,11 +84,11 @@ export default function Browse({ query }: { query: URLSearchParams }) {
         {data && data.items.length === 0 && (
           <EmptyState
             icon={SearchX}
-            title="No designs match your filters"
-            description="Try widening the budget or clearing the search."
+            title="No designs match your search"
+            description="Try a different keyword or budget."
             action={
               <Button variant="outline" onClick={() => navigate("/listings")}>
-                Clear filters
+                Clear search
               </Button>
             }
           />

@@ -2,12 +2,13 @@ import { Router } from "express";
 import { isValidObjectId } from "mongoose";
 import { z } from "zod";
 import { HttpError } from "../lib/http-error.js";
-import { requireAdmin, requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireTeacher } from "../middleware/auth.js";
 import { LISTING_STATUSES, Listing } from "../models/listing.js";
 
-export const adminRouter = Router();
+export const moderationRouter = Router();
 
-adminRouter.use(requireAuth, requireAdmin);
+// Teachers and admins moderate student designs.
+moderationRouter.use(requireAuth, requireTeacher);
 
 const queueQuerySchema = z.object({
   status: z.enum(LISTING_STATUSES).default("pending"),
@@ -25,7 +26,7 @@ function requireObjectId(id: string): string {
 }
 
 /** Moderation queue, newest first. */
-adminRouter.get("/listings", async (req, res) => {
+moderationRouter.get("/listings", async (req, res) => {
   const parsed = queueQuerySchema.safeParse(req.query);
   if (!parsed.success) {
     throw new HttpError(400, "Invalid query", parsed.error.issues);
@@ -52,7 +53,7 @@ adminRouter.get("/listings", async (req, res) => {
   });
 });
 
-adminRouter.post("/listings/:id/approve", async (req, res) => {
+moderationRouter.post("/listings/:id/approve", async (req, res) => {
   const id = requireObjectId(String(req.params.id));
 
   const listing = await Listing.findByIdAndUpdate(
@@ -68,7 +69,7 @@ adminRouter.post("/listings/:id/approve", async (req, res) => {
   res.json({ listing });
 });
 
-adminRouter.post("/listings/:id/reject", async (req, res) => {
+moderationRouter.post("/listings/:id/reject", async (req, res) => {
   const id = requireObjectId(String(req.params.id));
 
   const parsed = rejectSchema.safeParse(req.body);

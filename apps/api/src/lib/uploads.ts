@@ -15,6 +15,9 @@ export const UPLOAD_DIR = fileURLToPath(
 export const MAX_IMAGES = 15;
 export const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
+/** A single 3D model, which is a lot heavier than a photo. */
+export const MAX_MODEL_BYTES = 100 * 1024 * 1024;
+
 export const IMAGE_MIME_TYPES = new Set([
   "image/jpeg",
   "image/png",
@@ -22,6 +25,13 @@ export const IMAGE_MIME_TYPES = new Set([
   "image/gif",
   "image/avif",
 ]);
+
+/**
+ * Web-friendly 3D model formats. `.glb` is a self-contained binary glTF and is
+ * what most tools (Blender, etc.) export for the web; `.gltf` is accepted too
+ * but only works when it has its textures and buffers embedded.
+ */
+export const MODEL_EXTENSIONS = new Set([".glb", ".gltf"]);
 
 mkdirSync(UPLOAD_DIR, { recursive: true });
 
@@ -42,6 +52,23 @@ export const imageUpload = multer({
       callback(
         new Error("Only JPG, PNG, WebP, GIF or AVIF images are allowed"),
       );
+      return;
+    }
+    callback(null, true);
+  },
+});
+
+/**
+ * Accepts a single 3D model file. Browsers are inconsistent about the MIME type
+ * they send for glTF, so the file extension is the reliable check here.
+ */
+export const modelUpload = multer({
+  storage,
+  limits: { files: 1, fileSize: MAX_MODEL_BYTES },
+  fileFilter: (_req, file, callback) => {
+    const extension = extname(file.originalname).toLowerCase();
+    if (!MODEL_EXTENSIONS.has(extension)) {
+      callback(new Error("Only .glb or .gltf 3D models are allowed"));
       return;
     }
     callback(null, true);

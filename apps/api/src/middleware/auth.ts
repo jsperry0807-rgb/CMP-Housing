@@ -2,7 +2,7 @@ import type { NextFunction, Request, Response } from "express";
 import { HttpError } from "../lib/http-error.js";
 import { verifyAuthToken } from "../lib/jwt.js";
 import { AUTH_COOKIE } from "../lib/session.js";
-import { User } from "../models/user.js";
+import { isAdmin, isStaff, User } from "../models/user.js";
 
 /** Rejects the request unless a valid session cookie is present. */
 export async function requireAuth(
@@ -57,7 +57,29 @@ export async function optionalAuth(
   next();
 }
 
-/** Must run after requireAuth. */
+/**
+ * Must run after requireAuth. Allows teachers and admins — the school staff
+ * who moderate designs and manage student teams.
+ */
+export function requireTeacher(
+  req: Request,
+  _res: Response,
+  next: NextFunction,
+): void {
+  if (!req.user) {
+    next(new HttpError(401, "Not authenticated"));
+    return;
+  }
+
+  if (!isStaff(req.user.role)) {
+    next(new HttpError(403, "Teacher access required"));
+    return;
+  }
+
+  next();
+}
+
+/** Must run after requireAuth. Allows only admins, who sit above teachers. */
 export function requireAdmin(
   req: Request,
   _res: Response,
@@ -68,7 +90,7 @@ export function requireAdmin(
     return;
   }
 
-  if (req.user.role !== "admin") {
+  if (!isAdmin(req.user.role)) {
     next(new HttpError(403, "Admin access required"));
     return;
   }

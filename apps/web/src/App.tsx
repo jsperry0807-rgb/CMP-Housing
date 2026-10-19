@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import FullPageLoader from "@/components/full-page-loader";
 import SiteLayout from "@/components/site-layout";
+import { isAdmin, isStaff } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { isDashboardRoute, navigate, parseRoute, useRoute } from "@/lib/router";
 import Browse from "@/pages/browse";
@@ -15,15 +16,17 @@ import MyListings from "@/pages/my-listings";
 import Signup from "@/pages/signup";
 import TeamProfile from "@/pages/team-profile";
 import Teams from "@/pages/teams";
+import Users from "@/pages/users";
 
 export default function App() {
   const route = useRoute();
   const { user, loading } = useAuth();
 
   // Keep the URL and the session in sync: the dashboard is private, the
-  // moderation queue is admin-only, and the auth pages are pointless once
-  // you're signed in. Read the live hash rather than the rendered route, so an
-  // explicit navigate() (e.g. after sign out) is not undone by a stale render.
+  // moderation queue and team management are for staff, the user manager is
+  // admin-only, and the auth pages are pointless once you're signed in. Read the
+  // live hash rather than the rendered route, so an explicit navigate() (e.g.
+  // after sign out) is not undone by a stale render.
   useEffect(() => {
     if (loading) return;
     const current = parseRoute(window.location.hash);
@@ -34,8 +37,12 @@ export default function App() {
     }
     if (
       (current.name === "moderation" || current.name === "teams") &&
-      user?.role !== "admin"
+      !isStaff(user)
     ) {
+      navigate("/dashboard");
+      return;
+    }
+    if (current.name === "users" && !isAdmin(user)) {
       navigate("/dashboard");
       return;
     }
@@ -58,7 +65,7 @@ export default function App() {
     case "team-profile":
       return user ? <TeamProfile /> : <FullPageLoader />;
     case "teams":
-      return user?.role === "admin" ? <Teams /> : <FullPageLoader />;
+      return isStaff(user) ? <Teams /> : <FullPageLoader />;
     case "listing-form":
       return user ? (
         <ListingForm key={route.slug ?? "new"} slug={route.slug} />
@@ -66,7 +73,9 @@ export default function App() {
         <FullPageLoader />
       );
     case "moderation":
-      return user?.role === "admin" ? <Moderation /> : <FullPageLoader />;
+      return isStaff(user) ? <Moderation /> : <FullPageLoader />;
+    case "users":
+      return isAdmin(user) ? <Users /> : <FullPageLoader />;
     case "home":
       return (
         <SiteLayout>

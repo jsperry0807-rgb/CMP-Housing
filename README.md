@@ -9,7 +9,7 @@ reviews it before it goes live.
 
 ### Apps and Packages
 
-- `web`: a [React 19](https://react.dev) + [Vite](https://vite.dev) + [Tailwind CSS 4](https://tailwindcss.com) app with [shadcn/ui](https://ui.shadcn.com) components — browse as the main page (`#/`), design detail (`#/listings/:slug`), a landing hero (`#/home`), auth (`#/login`, `#/signup`), and a private dashboard (`#/dashboard`) where teams submit designs and teachers moderate them and manage team membership
+- `web`: a [React 19](https://react.dev) + [Vite](https://vite.dev) + [Tailwind CSS 4](https://tailwindcss.com) app with [shadcn/ui](https://ui.shadcn.com) components — browse as the main page (`#/`), design detail (`#/listings/:slug`), a landing hero (`#/home`), auth (`#/login`, `#/signup`), and a private dashboard (`#/dashboard`) where teams submit designs and staff moderate them, manage teams, and admins manage accounts
 - `api`: an [Express 5](https://expressjs.com) API with [Mongoose](https://mongoosejs.com) (MongoDB), JWT auth in httpOnly cookies, bcrypt password hashing, and `multer` file uploads
 - `@repo/ui`: a stub component and utility library
 - `@repo/eslint-config`: shared ESLint configuration
@@ -51,8 +51,10 @@ One **design** (internally still a `Listing`) is a house a team built in class:
 - `owner` — the student who submitted it, credited as "designed by"
 - `team` — the team that owns it; every member can see, edit and delete it
 
-Statuses are `draft → pending → active → rejected`. Owners may set `draft` or
-`pending`; only a teacher (admin) can set `active` or `rejected`.
+Statuses are `draft → pending → active → rejected`, plus **`not-for-sale`** —
+a showcase design that is visible to the public but not on the market. Owners
+may set `draft` or `pending`; only staff (a teacher or admin) can set `active`
+or `rejected`. `active` and `not-for-sale` are the public statuses.
 
 ### Teams
 
@@ -60,6 +62,19 @@ A **Team** is just an identity (`name`, unique; optional `logo`). Membership is
 stored on the user (`User.team`), and a teacher assigns students to teams from
 the dashboard. Because a design belongs to a team, every member of that team can
 manage it — the `owner` field only records who submitted it.
+
+### Roles
+
+Every account has a `role`:
+
+- **student** — submits designs for their team; the default on signup
+- **teacher** — reviews (moderates) designs and manages teams
+- **admin** — everything a teacher can do, plus managing accounts and roles
+
+Teachers and admins are collectively **staff**. Both moderate designs and manage
+teams; only an admin manages accounts. The API mirrors this with `isStaff()` and
+`isAdmin()` (`apps/api/src/models/user.ts`), and the web with the same helpers
+in `apps/web/src/lib/api.ts`.
 
 ## Auth API
 
@@ -95,40 +110,57 @@ submit designs.
 
 ## Teams API
 
-Managing teams is admin-only; `GET /api/me/team` works for any signed-in user.
+Managing teams requires staff (a teacher or admin); `GET /api/me/team` works for
+any signed-in user.
 
 | Method   | Route               | Who       | Description                                            |
 | -------- | ------------------- | --------- | ------------------------------------------------------ |
-| `GET`    | `/api/teams`        | admin     | Every team with members, plus every student account    |
-| `POST`   | `/api/teams`        | admin     | Create a team (`{ name, logo? }`)                      |
-| `PATCH`  | `/api/teams/:id`    | admin     | Rename a team or change its logo (409 on a name clash) |
-| `DELETE` | `/api/teams/:id`    | admin     | Remove a team (409 while it still owns designs)        |
-| `POST`   | `/api/teams/assign` | admin     | `{ userId, team }` — assign a student, or `team: null` |
+| `GET`    | `/api/teams`        | staff     | Every team with members, plus every student account    |
+| `POST`   | `/api/teams`        | staff     | Create a team (`{ name, logo? }`)                      |
+| `PATCH`  | `/api/teams/:id`    | staff     | Rename a team or change its logo (409 on a name clash) |
+| `DELETE` | `/api/teams/:id`    | staff     | Remove a team (409 while it still owns designs)        |
+| `POST`   | `/api/teams/assign` | staff     | `{ userId, team }` — assign a student, or `team: null` |
 | `GET`    | `/api/me/team`      | signed in | Your team and its members, or `{ "team": null }`       |
 
 Deleting a team unassigns its members. A team that still owns designs cannot be
 removed, so a design is never orphaned.
 
+## Users API
+
+Admin-only account and role management.
+
+| Method   | Route            | Who   | Description                                             |
+| -------- | ---------------- | ----- | ------------------------------------------------------- |
+| `GET`    | `/api/users`     | admin | Every account, with role and team populated             |
+| `PATCH`  | `/api/users/:id` | admin | `{ "role": "student\|teacher\|admin" }` — change a role |
+| `DELETE` | `/api/users/:id` | admin | Delete an account and the designs it owns               |
+
+An admin cannot change or delete their own account, and the API refuses to
+remove the last remaining admin. Moving an account off `student` clears its
+team, since only students belong to one. Deleting an account also deletes its
+designs and their uploaded photos.
+
 ## Designs API
 
-Public reads only ever return `active` designs. `pending`, `rejected`, and
-`draft` designs are visible to their team and to teachers.
+Public reads only ever return `active` and `not-for-sale` designs. `pending`,
+`rejected`, and `draft` designs are visible to their team and to staff.
 
-| Method   | Route                             | Who       | Description                                        |
-| -------- | --------------------------------- | --------- | -------------------------------------------------- |
-| `GET`    | `/api/listings`                   | public    | Browse, with filters + pagination (see below)      |
-| `GET`    | `/api/listings/featured`          | public    | The three newest active designs                    |
-| `GET`    | `/api/listings/:slug`             | public    | One design by slug (populates team + `similar`)    |
-| `POST`   | `/api/listings`                   | signed in | Create a design (needs a team; lands in `pending`) |
-| `PATCH`  | `/api/listings/:id`               | team      | Update a design your team owns                     |
-| `DELETE` | `/api/listings/:id`               | team      | Delete a design your team owns                     |
-| `GET`    | `/api/me/listings`                | signed in | Your team's designs, any status, with counts       |
-| `GET`    | `/api/admin/listings`             | admin     | Moderation queue (`?status=pending` by default)    |
-| `POST`   | `/api/admin/listings/:id/approve` | admin     | Publish a design                                   |
-| `POST`   | `/api/admin/listings/:id/reject`  | admin     | Reject it, with `{ "reason": "…" }`                |
+| Method   | Route                                  | Who       | Description                                        |
+| -------- | -------------------------------------- | --------- | -------------------------------------------------- |
+| `GET`    | `/api/listings`                        | public    | Browse, with filters + pagination (see below)      |
+| `GET`    | `/api/listings/featured`               | public    | The three newest public designs                    |
+| `GET`    | `/api/listings/:slug`                  | public    | One design by slug (populates team + `similar`)    |
+| `POST`   | `/api/listings`                        | signed in | Create a design (needs a team; lands in `pending`) |
+| `PATCH`  | `/api/listings/:id`                    | team      | Update a design your team owns                     |
+| `DELETE` | `/api/listings/:id`                    | team      | Delete a design your team owns                     |
+| `GET`    | `/api/me/listings`                     | signed in | Your team's designs, any status, with counts       |
+| `GET`    | `/api/moderation/listings`             | staff     | Moderation queue (`?status=pending` by default)    |
+| `POST`   | `/api/moderation/listings/:id/approve` | staff     | Publish a design                                   |
+| `POST`   | `/api/moderation/listings/:id/reject`  | staff     | Reject it, with `{ "reason": "…" }`                |
 
 "team" means a teacher, the submitter, or any member of the design's team. A
-student with no team cannot create a design.
+student with no team cannot create a design; staff can create one without a
+team.
 
 Browse query parameters: `q` (name/description/city), `city`, `minCost`,
 `maxCost`, `beds` (minimum), `sort` (`newest` \| `cost-asc` \| `cost-desc` \|
@@ -149,23 +181,44 @@ guards against path traversal. `apps/api/uploads/` is gitignored.
 ## Demo data
 
 ```sh
-pnpm --filter api db:seed                    # 9 designs + 6 accounts
-pnpm --filter api promote you@example.com    # grant the teacher (admin) role
+pnpm --filter api db:seed                          # 9 designs + 6 accounts
+pnpm --filter api db:seed-history                  # 9 historical houses, not for sale
+pnpm --filter api promote you@example.com teacher  # set a role: student | teacher | admin
+pnpm --filter api create-admin owner@ects.org      # create/promote an admin (prints a password)
+pnpm --filter api db:wipe -- --yes                 # delete every house, team and account
 ```
+
+`db:seed` is for local and test databases only: it writes demo accounts
+(password `password123`) and houses, and refuses to run when
+`NODE_ENV=production`.
+
+`db:wipe` empties the `listings`, `teams` and `users` collections — houses,
+accounts (students and teachers) and teams — leaving a clean slate. It needs
+`--yes` because it cannot be undone, and it does not touch uploaded photos.
+
+`db:seed-history` adds the nine houses students designed before the site
+existed, all owned by a single `unknown@students.ects.org` account ("Unknown
+Student") and marked `not-for-sale`. They show up in the public browse but are
+not on the market; the account has a random, discarded password, so nobody can
+sign in as it. It creates no teams and no other accounts.
+
+`promote` sets an existing account's role and defaults to `teacher` when none is
+given. `create-admin` creates an admin account and prints a generated password,
+or promotes an existing account if the email is already in use.
 
 The seed replaces listings owned by the demo accounts and removes any leftover
 accounts from earlier versions, so anything you create yourself is left alone.
 It also creates the four student teams and assigns the team accounts to them.
 All demo accounts use the password `password123`:
 
-| Email                    | Role  | Team                       |
-| ------------------------ | ----- | -------------------------- |
-| `timberline@example.com` | user  | Timberline Studio          |
-| `keystone@example.com`   | user  | Keystone Draft             |
-| `blueridge@example.com`  | user  | Blue Ridge Design          |
-| `summit@example.com`     | user  | Summit Works               |
-| `admin@example.com`      | admin | — (the teacher)            |
-| `student@example.com`    | user  | — (unassigned, no designs) |
+| Email                    | Role    | Team                       |
+| ------------------------ | ------- | -------------------------- |
+| `timberline@example.com` | student | Timberline Studio          |
+| `keystone@example.com`   | student | Keystone Draft             |
+| `blueridge@example.com`  | student | Blue Ridge Design          |
+| `summit@example.com`     | student | Summit Works               |
+| `admin@example.com`      | admin   | — (the teacher)            |
+| `student@example.com`    | student | — (unassigned, no designs) |
 
 Each seeded design belongs to one of the four student teams, and the seed
 computes its `similar` links (the three closest by cost). The unassigned
@@ -176,17 +229,19 @@ as `admin@example.com`, open **Manage teams**, and put them on a team.
 
 Real photos are the nicest, but they're optional: drop them in
 `apps/api/seed-images/<folder>/` and set that folder as the design's `imagePath`
-in `seed.ts`. The seeder copies them into `uploads/` under stable slug names on
-every run, so reseeding does not duplicate files. If a folder is missing, the
-seeder falls back to [picsum.photos](https://picsum.photos) placeholders, which
-need a network connection to load. `seed-images/` is gitignored except for its
-README.
+in `apps/api/src/scripts/house-catalog.ts` (the shared house data, used by both
+seeders). A seeder copies them into `uploads/` under stable slug names on every
+run, so reseeding does not duplicate files. When a folder is missing, `db:seed`
+falls back to [picsum.photos](https://picsum.photos) placeholders (which need a
+network connection to load), while `db:seed-history` leaves the gallery empty
+until real photos are added — drop them in and re-run. `seed-images/` is
+gitignored except for its README.
 
 ## Pages
 
 The web app is a single page app driven by the URL hash, so every view is
-linkable and the browser's back button works. Browse filters live in the query
-string, which makes a filtered list easy to share.
+linkable and the browser's back button works. Browse search terms live in the
+query string, which makes a filtered list easy to share.
 
 | Hash                              | Page                                                   |
 | --------------------------------- | ------------------------------------------------------ |
@@ -201,19 +256,21 @@ string, which makes a filtered list easy to share.
 | `#/dashboard/listings/new`        | Submit a design                                        |
 | `#/dashboard/listings/:slug/edit` | Edit a design your team owns                           |
 | `#/dashboard/team`                | Your team and its members                              |
-| `#/dashboard/teams`               | Teacher-only: create teams and assign students         |
-| `#/dashboard/moderation`          | Teacher-only moderation queue (approve / reject)       |
+| `#/dashboard/teams`               | Staff-only: create teams and assign students           |
+| `#/dashboard/moderation`          | Staff-only moderation queue (approve / reject)         |
+| `#/dashboard/users`               | Admin-only: manage accounts and roles                  |
 
-Browse reads `q`, `maxCost`, `beds` and `sort` from the query string, so
-`#/listings?q=barn&maxCost=600000` is a valid, shareable URL.
+Browse reads `q` and `maxCost` (set by the landing hero search), plus `beds`
+and `sort`, from the query string, so `#/listings?q=barn&maxCost=600000` is a
+valid, shareable URL.
 
 The mortgage calculator reads `price` and `tax` from the query string, so a
 design's detail page can link to `#/calculator?price=450000&tax=5400` with its
 numbers already filled in.
 
-Everything under `#/dashboard` requires a session, and `#/dashboard/teams` and
-`#/dashboard/moderation` additionally require the `admin` role — `App.tsx`
-redirects visitors who do not qualify.
+Everything under `#/dashboard` requires a session, and `App.tsx` redirects
+visitors who do not qualify: `#/dashboard/teams` and `#/dashboard/moderation`
+need staff (a teacher or admin), and `#/dashboard/users` needs an admin.
 
 ### Submitting and moderation
 
@@ -229,7 +286,7 @@ draft ──▶ pending ──▶ active
 ```
 
 Teams can edit their own designs, move them between `draft` and `pending`, and
-delete them. Only a teacher can set `active` or `rejected`. Editing an approved
+delete them. Only staff can set `active` or `rejected`. Editing an approved
 design leaves it live, and its slug stays stable unless the name changes.
 
 Routing lives in `apps/web/src/lib/router.ts` (`parseRoute`, `navigate`,

@@ -7,14 +7,14 @@ import { optionalAuth, requireAuth } from "../middleware/auth.js";
 import {
   Listing,
   LISTING_STATUSES,
-  PUBLIC_LISTING_STATUS,
+  PUBLIC_LISTING_STATUSES,
   type IListing,
 } from "../models/listing.js";
-import type { UserDocument } from "../models/user.js";
+import { isStaff, type UserDocument } from "../models/user.js";
 
 export const listingRouter = Router();
 
-// Owners may set these on their own listing; only a teacher (admin) may approve.
+// Owners may set these on their own listing; only a teacher or admin may approve.
 const OWNER_SETTABLE_STATUSES = ["draft", "pending"] as const;
 const OWNER_SETTABLE = new Set<string>(OWNER_SETTABLE_STATUSES);
 
@@ -57,6 +57,7 @@ const listingInputSchema = z.object({
   interior: z.array(entrySchema).max(30).default([]),
   roomTypes: z.array(z.string().trim().min(1).max(60)).max(30).default([]),
   images: z.array(z.string().trim().min(1).max(500)).max(15).default([]),
+  model: z.string().trim().max(500).optional(),
   similar: z
     .array(z.string().regex(/^[0-9a-fA-F]{24}$/))
     .max(12)
@@ -136,7 +137,7 @@ function canManage(
   listing: { owner: unknown; team?: unknown },
   user: UserDocument,
 ): boolean {
-  if (user.role === "admin") return true;
+  if (isStaff(user.role)) return true;
   const teamId = teamIdOf(listing);
   const userTeam = user.team ? String(user.team) : null;
   if (teamId && userTeam && teamId === userTeam) return true;
@@ -170,7 +171,9 @@ listingRouter.get("/", async (req, res) => {
 
   const { q, city, minCost, maxCost, beds, sort, page, limit } = parsed.data;
 
-  const filter: QueryFilter<IListing> = { status: PUBLIC_LISTING_STATUS };
+  const filter: QueryFilter<IListing> = {
+    status: { $in: PUBLIC_LISTING_STATUSES },
+  };
 
   if (q) {
     const rx = new RegExp(escapeRegExp(q), "i");
@@ -208,7 +211,7 @@ listingRouter.get("/", async (req, res) => {
 
 // Declared before "/:slug" so it is not swallowed by the parameterised route.
 listingRouter.get("/featured", async (_req, res) => {
-  const items = await Listing.find({ status: PUBLIC_LISTING_STATUS })
+  const items = await Listing.find({ status: { $in: PUBLIC_LISTING_STATUSES } })
     .sort({ createdAt: -1 })
     .limit(3)
     .populate("owner", OWNER_FIELDS)
@@ -235,7 +238,7 @@ listingRouter.get("/:slug", optionalAuth, async (req, res) => {
   if (!listing) throw new HttpError(404, "Listing not found");
 
   // Non-public listings are only visible to their owner and teachers.
-  if (listing.status !== PUBLIC_LISTING_STATUS) {
+  if (!PUBLIC_LISTING_STATUSES.includes(listing.status)) {
     const allowed = req.user && canManage(listing, req.user);
     if (!allowed) throw new HttpError(404, "Listing not found");
   }
@@ -249,7 +252,8 @@ listingRouter.post("/", requireAuth, async (req, res) => {
   const user = req.user!;
   const input = parseBody(listingInputSchema, req.body);
 
-  if (!user.team) {
+  // Students submit as part of a team; staff may post designs without one.
+  if (!user.team && !isStaff(user.role)) {
     throw new HttpError(
       400,
       "You need to be on a team before submitting a design",
@@ -285,7 +289,7 @@ listingRouter.patch("/:id", requireAuth, async (req, res) => {
   // Owners may not approve their own listing.
   if (
     input.status !== undefined &&
-    user.role !== "admin" &&
+    !isStaff(user.role) &&
     !OWNER_SETTABLE.has(input.status)
   ) {
     throw new HttpError(403, "Only a teacher can approve a listing");

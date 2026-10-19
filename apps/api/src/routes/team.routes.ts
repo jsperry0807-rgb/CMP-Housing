@@ -2,7 +2,7 @@ import { Router } from "express";
 import { isValidObjectId, Types } from "mongoose";
 import { z } from "zod";
 import { HttpError } from "../lib/http-error.js";
-import { requireAdmin, requireAuth } from "../middleware/auth.js";
+import { requireAuth, requireTeacher } from "../middleware/auth.js";
 import { Listing } from "../models/listing.js";
 import { Team, type TeamDocument } from "../models/team.js";
 import { User } from "../models/user.js";
@@ -60,11 +60,11 @@ function requireTeamId(id: string): string {
   return id;
 }
 
-/** Admin overview: every team with its members, plus every student account. */
-teamRouter.get("/", requireAdmin, async (_req, res) => {
+/** Staff overview: every team with its members, plus every student account. */
+teamRouter.get("/", requireTeacher, async (_req, res) => {
   const [teams, students] = await Promise.all([
     Team.find().sort({ name: 1 }),
-    User.find({ role: "user" }).sort({ name: 1 }),
+    User.find({ role: "student" }).sort({ name: 1 }),
   ]);
 
   const membersByTeam = new Map<string, MemberSummary[]>();
@@ -90,7 +90,7 @@ teamRouter.get("/", requireAdmin, async (_req, res) => {
 });
 
 /** Create a team. */
-teamRouter.post("/", requireAdmin, async (req, res) => {
+teamRouter.post("/", requireTeacher, async (req, res) => {
   const parsed = createSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new HttpError(400, "Invalid request body", parsed.error.issues);
@@ -105,7 +105,7 @@ teamRouter.post("/", requireAdmin, async (req, res) => {
 });
 
 /** Assign (or unassign) a student, moving them onto a team. */
-teamRouter.post("/assign", requireAdmin, async (req, res) => {
+teamRouter.post("/assign", requireTeacher, async (req, res) => {
   const parsed = assignSchema.safeParse(req.body);
   if (!parsed.success) {
     throw new HttpError(400, "Invalid request body", parsed.error.issues);
@@ -119,8 +119,8 @@ teamRouter.post("/assign", requireAdmin, async (req, res) => {
 
   const user = await User.findById(userId);
   if (!user) throw new HttpError(404, "Student not found");
-  if (user.role === "admin") {
-    throw new HttpError(400, "Teachers are not assigned to student teams");
+  if (user.role !== "student") {
+    throw new HttpError(400, "Only students are assigned to teams");
   }
 
   user.team = team ? new Types.ObjectId(team) : undefined;
@@ -137,7 +137,7 @@ teamRouter.post("/assign", requireAdmin, async (req, res) => {
 });
 
 /** Rename a team or change its logo. */
-teamRouter.patch("/:id", requireAdmin, async (req, res) => {
+teamRouter.patch("/:id", requireTeacher, async (req, res) => {
   const id = requireTeamId(String(req.params.id));
 
   const parsed = updateSchema.safeParse(req.body);
@@ -168,7 +168,7 @@ teamRouter.patch("/:id", requireAdmin, async (req, res) => {
 });
 
 /** Remove a team. Blocked while it still owns designs. */
-teamRouter.delete("/:id", requireAdmin, async (req, res) => {
+teamRouter.delete("/:id", requireTeacher, async (req, res) => {
   const id = requireTeamId(String(req.params.id));
 
   if ((await Listing.countDocuments({ team: id })) > 0) {

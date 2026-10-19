@@ -1,4 +1,25 @@
-export type ApiRole = "user" | "admin";
+export type ApiRole = "student" | "teacher" | "admin";
+
+/** Teachers and admins share moderation and team-management powers. */
+export function isStaff(
+  user: Pick<ApiUser, "role"> | null | undefined,
+): boolean {
+  return user?.role === "teacher" || user?.role === "admin";
+}
+
+/** Admins sit above teachers and manage accounts and roles. */
+export function isAdmin(
+  user: Pick<ApiUser, "role"> | null | undefined,
+): boolean {
+  return user?.role === "admin";
+}
+
+/** Human-readable labels for each role. */
+export const ROLE_LABELS: Record<ApiRole, string> = {
+  student: "Student",
+  teacher: "Teacher",
+  admin: "Admin",
+};
 
 /** The team a student belongs to, as returned on an authenticated user. */
 export interface ApiTeam {

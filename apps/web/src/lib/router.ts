@@ -10,6 +10,7 @@ export type RouteName =
   | "my-listings"
   | "listing-form"
   | "moderation"
+  | "users"
   | "browse"
   | "listing"
   | "calculator";
@@ -30,7 +31,8 @@ export function isDashboardRoute(name: RouteName): boolean {
     name === "teams" ||
     name === "my-listings" ||
     name === "listing-form" ||
-    name === "moderation"
+    name === "moderation" ||
+    name === "users"
   );
 }
 
@@ -57,6 +59,7 @@ export function parseRoute(hash: string): RouteState {
     case "dashboard":
       if (second === "moderation") return { name: "moderation", query };
       if (second === "teams") return { name: "teams", query };
+      if (second === "users") return { name: "users", query };
       if (second === "team") return { name: "team-profile", query };
       if (second === "listings") {
         if (!third) return { name: "my-listings", query };

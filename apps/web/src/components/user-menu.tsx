@@ -1,4 +1,12 @@
-import { CirclePlus, LayoutDashboard, LogOut, UsersRound } from "lucide-react";
+import {
+  CirclePlus,
+  LayoutDashboard,
+  LogOut,
+  ShieldCheck,
+  UserCog,
+  Users,
+  UsersRound,
+} from "lucide-react";
 import { useState } from "react";
 import TeamAvatar from "@/components/team-avatar";
 import {
@@ -10,7 +18,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import type { ApiUser } from "@/lib/api";
+import { isAdmin, isStaff, ROLE_LABELS, type ApiUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { navigate } from "@/lib/router";
 
@@ -46,6 +54,9 @@ export default function UserMenu({ user }: { user: ApiUser }) {
             <p className="truncate text-xs font-normal text-muted-foreground">
               {user.name} · {user.email}
             </p>
+            <p className="truncate text-xs font-normal text-muted-foreground">
+              {ROLE_LABELS[user.role]}
+            </p>
           </DropdownMenuLabel>
           <DropdownMenuItem onClick={() => navigate("/dashboard")}>
             <LayoutDashboard />
@@ -55,14 +66,30 @@ export default function UserMenu({ user }: { user: ApiUser }) {
             <CirclePlus />
             New design
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => navigate("/dashboard/team")}>
-            <UsersRound />
-            Team profile
-          </DropdownMenuItem>
-          {user.role === "admin" && (
-            <DropdownMenuItem onClick={() => navigate("/dashboard/teams")}>
+          {user.role === "student" && (
+            <DropdownMenuItem onClick={() => navigate("/dashboard/team")}>
               <UsersRound />
-              Manage teams
+              Team profile
+            </DropdownMenuItem>
+          )}
+          {isStaff(user) && (
+            <>
+              <DropdownMenuItem onClick={() => navigate("/dashboard/teams")}>
+                <UserCog />
+                Manage teams
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                onClick={() => navigate("/dashboard/moderation")}
+              >
+                <ShieldCheck />
+                Moderation
+              </DropdownMenuItem>
+            </>
+          )}
+          {isAdmin(user) && (
+            <DropdownMenuItem onClick={() => navigate("/dashboard/users")}>
+              <Users />
+              Users
             </DropdownMenuItem>
           )}
         </DropdownMenuGroup>

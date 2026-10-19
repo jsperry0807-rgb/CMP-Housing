@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ApiError, authApi } from "@/lib/api";
+import { ApiError, authApi, isStaff, ROLE_LABELS } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { teamsApi, type TeamDetail } from "@/lib/teams";
 import { initials } from "@/lib/utils";
@@ -51,6 +51,8 @@ export default function TeamProfile() {
   }, [user?.id]);
 
   if (!user) return null;
+
+  const staff = isStaff(user);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,19 +142,15 @@ export default function TeamProfile() {
           </Card>
         ) : (
           <EmptyState
-            icon={user.role === "admin" ? UserCog : UsersRound}
-            title={
-              user.role === "admin"
-                ? "Teachers are not on a team"
-                : "No team yet"
-            }
+            icon={staff ? UserCog : UsersRound}
+            title={staff ? "Staff are not on a team" : "No team yet"}
             description={
-              user.role === "admin"
+              staff
                 ? "Create teams and assign your students to them from Manage teams."
                 : "Your teacher will add you to a team. Once you are on one, you can submit designs for it."
             }
             action={
-              user.role === "admin" ? (
+              staff ? (
                 <Button
                   variant="outline"
                   onClick={() => {
@@ -192,9 +190,7 @@ export default function TeamProfile() {
                 <Label htmlFor="email">Email</Label>
                 <Input id="email" value={user.email} disabled readOnly />
                 <p className="text-xs text-muted-foreground">
-                  {user.role === "admin"
-                    ? "Signed in as a teacher."
-                    : "Signed in as a student."}
+                  Signed in as a {ROLE_LABELS[user.role].toLowerCase()}.
                 </p>
               </div>
             </CardContent>

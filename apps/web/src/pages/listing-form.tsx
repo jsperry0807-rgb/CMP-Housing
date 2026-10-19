@@ -17,6 +17,7 @@ import { toast } from "sonner";
 import DashboardLayout from "@/components/dashboard-layout";
 import EmptyState from "@/components/empty-state";
 import ImageUploader from "@/components/image-uploader";
+import ModelUploader from "@/components/model-uploader";
 import StatusBadge from "@/components/status-badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -39,6 +40,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { THREE_D_MODELS_ENABLED } from "@/lib/features";
 import {
   listingsApi,
   type Listing,
@@ -79,6 +81,8 @@ interface FormState {
   interior: EntryRow[];
   roomTypes: string[];
   images: string[];
+  /** URL of the uploaded 3D model, or "" for none. */
+  model: string;
   /** Only meaningfully used while editing. */
   status: Visibility;
 }
@@ -109,6 +113,7 @@ const EMPTY_FORM: FormState = {
   interior: [],
   roomTypes: [],
   images: [],
+  model: "",
   status: "pending",
 };
 
@@ -136,6 +141,7 @@ function fromListing(listing: Listing): FormState {
     interior: listing.interior?.map((entry) => ({ ...entry })) ?? [],
     roomTypes: [...(listing.roomTypes ?? [])],
     images: [...(listing.images ?? [])],
+    model: listing.model ?? "",
     status: "keep",
   };
 }
@@ -219,6 +225,8 @@ function buildPayload(form: FormState): ListingInput {
     interior: cleanEntries(form.interior),
     roomTypes: form.roomTypes.map((room) => room.trim()).filter(Boolean),
     images: form.images,
+    // A blank value clears an existing model; a URL sets or replaces it.
+    model: form.model.trim(),
   };
 
   const year = toNumber(form.year);
@@ -480,7 +488,8 @@ export default function ListingForm({ slug }: { slug?: string }) {
   }
 
   // A design belongs to a team, so a student needs one before submitting.
-  if (!editing && user && user.role !== "admin" && !user.team) {
+  // Staff (teachers and admins) may post designs without a team.
+  if (!editing && user && user.role === "student" && !user.team) {
     return (
       <DashboardLayout
         title="New design"
@@ -866,6 +875,26 @@ export default function ListingForm({ slug }: { slug?: string }) {
             )}
           </CardContent>
         </Card>
+
+        {THREE_D_MODELS_ENABLED && (
+          <Card>
+            <CardHeader>
+              <CardTitle>3D model</CardTitle>
+              <CardDescription>
+                Optional. Upload an interactive model so visitors can spin the
+                house around on the design page. Use a .glb file exported from
+                your modelling software.
+              </CardDescription>
+            </CardHeader>
+
+            <CardContent>
+              <ModelUploader
+                value={form.model}
+                onChange={(url) => set("model", url)}
+              />
+            </CardContent>
+          </Card>
+        )}
 
         <Card>
           <CardHeader>

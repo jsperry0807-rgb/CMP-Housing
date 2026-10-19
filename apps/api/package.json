@@ -11,7 +11,10 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint src",
     "db:seed": "tsx src/scripts/seed.ts",
-    "promote": "tsx src/scripts/promote.ts"
+    "db:seed-history": "tsx src/scripts/seed-history.ts",
+    "db:wipe": "tsx src/scripts/wipe.ts",
+    "promote": "tsx src/scripts/promote.ts",
+    "create-admin": "tsx src/scripts/create-admin.ts"
   },
   "dependencies": {
     "bcryptjs": "^3.0.3",

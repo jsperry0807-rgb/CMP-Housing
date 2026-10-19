@@ -5,6 +5,7 @@ import {
   PlusCircle,
   ShieldCheck,
   UserCog,
+  Users,
   UsersRound,
   type LucideIcon,
 } from "lucide-react";
@@ -14,6 +15,7 @@ import SignOutButton from "@/components/sign-out-button";
 import UserChip from "@/components/user-chip";
 import { buttonVariants } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
+import { isAdmin, isStaff } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { useRoute, type RouteName } from "@/lib/router";
 import { cn } from "@/lib/utils";
@@ -23,7 +25,8 @@ interface NavItem {
   href: string;
   icon: LucideIcon;
   matches: RouteName[];
-  adminOnly?: boolean;
+  /** Who may see the item. Defaults to every signed-in account. */
+  access?: "staff" | "admin";
 }
 
 const NAV: NavItem[] = [
@@ -50,14 +53,21 @@ const NAV: NavItem[] = [
     href: "/dashboard/teams",
     icon: UserCog,
     matches: ["teams"],
-    adminOnly: true,
+    access: "staff",
   },
   {
     label: "Moderation",
     href: "/dashboard/moderation",
     icon: ShieldCheck,
     matches: ["moderation"],
-    adminOnly: true,
+    access: "staff",
+  },
+  {
+    label: "Users",
+    href: "/dashboard/users",
+    icon: Users,
+    matches: ["users"],
+    access: "admin",
   },
 ];
 
@@ -79,7 +89,11 @@ export default function DashboardLayout({
 
   if (!user) return null;
 
-  const items = NAV.filter((item) => !item.adminOnly || user.role === "admin");
+  const items = NAV.filter((item) => {
+    if (item.access === "admin") return isAdmin(user);
+    if (item.access === "staff") return isStaff(user);
+    return true;
+  });
   const isActive = (item: NavItem) => item.matches.includes(route.name);
 
   return (

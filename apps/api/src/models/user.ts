@@ -7,8 +7,18 @@ import {
 } from "mongoose";
 import { hashPassword, verifyPassword } from "../lib/password.js";
 
-export const USER_ROLES = ["user", "admin"] as const;
+export const USER_ROLES = ["student", "teacher", "admin"] as const;
 export type UserRole = (typeof USER_ROLES)[number];
+
+/** Teachers and admins share moderation and team-management powers. */
+export function isStaff(role: UserRole): boolean {
+  return role === "teacher" || role === "admin";
+}
+
+/** Admins sit above teachers and manage accounts and roles. */
+export function isAdmin(role: UserRole): boolean {
+  return role === "admin";
+}
 
 export interface IUser {
   name: string;
@@ -52,7 +62,7 @@ const userSchema = new Schema<IUser, UserModel, IUserMethods>(
     role: {
       type: String,
       enum: USER_ROLES,
-      default: "user",
+      default: "student",
       required: true,
     },
     team: {

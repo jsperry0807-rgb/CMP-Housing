@@ -2,6 +2,7 @@ import {
   ArrowLeft,
   Bath,
   BedDouble,
+  Box,
   CalendarDays,
   Calculator,
   Home,
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import EmptyState from "@/components/empty-state";
+import LazyModelViewer from "@/components/lazy-model-viewer";
 import ListingCard from "@/components/listing-card";
 import ListingImage from "@/components/listing-image";
 import StatusBadge from "@/components/status-badge";
@@ -24,7 +26,9 @@ import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isStaff } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
+import { THREE_D_MODELS_ENABLED } from "@/lib/features";
 import {
   formatBaths,
   formatCost,
@@ -144,7 +148,7 @@ export default function ListingDetail({ slug }: { slug: string }) {
         : undefined;
   const canManage =
     user && listing
-      ? user.role === "admin" ||
+      ? isStaff(user) ||
         (typeof listing.owner === "object" && listing.owner.id === user.id) ||
         (Boolean(listingTeamId) && user.team?.id === listingTeamId)
       : false;
@@ -210,6 +214,12 @@ export default function ListingDetail({ slug }: { slug: string }) {
               <Badge variant="secondary">Built {listing.year}</Badge>
             ) : null}
             {team && <Badge variant="secondary">{team.name}</Badge>}
+            {THREE_D_MODELS_ENABLED && listing.model && (
+              <Badge variant="secondary">
+                <Box />
+                3D model
+              </Badge>
+            )}
             {listing.status !== "active" && (
               <StatusBadge status={listing.status} />
             )}
@@ -267,6 +277,18 @@ export default function ListingDetail({ slug }: { slug: string }) {
                   </div>
                 )}
               </div>
+
+              {THREE_D_MODELS_ENABLED && listing.model && (
+                <Section title="Interactive 3D model">
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Drag to look around the design, and scroll to zoom.
+                  </p>
+                  <LazyModelViewer
+                    src={listing.model}
+                    alt={`${listing.name} 3D model`}
+                  />
+                </Section>
+              )}
 
               <Section title="About this design">
                 <p className="whitespace-pre-line text-muted-foreground">

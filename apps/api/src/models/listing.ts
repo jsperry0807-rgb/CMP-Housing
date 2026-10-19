@@ -10,21 +10,27 @@ import { slugify } from "../lib/slug.js";
 /**
  * A "listing" is one house design submitted by a student team.
  *
- * draft   — the team is still working on it
- * pending — submitted, waiting for the teacher
- * active  — approved, visible to the public
- * rejected— the teacher sent it back (see rejectionReason)
+ * draft        — the team is still working on it
+ * pending      — submitted, waiting for the teacher
+ * active       — approved, visible to the public
+ * not-for-sale — a showcase design that is visible but not on the market
+ *                (e.g. houses built by students before the site existed)
+ * rejected     — the teacher sent it back (see rejectionReason)
  */
 export const LISTING_STATUSES = [
   "draft",
   "pending",
   "active",
+  "not-for-sale",
   "rejected",
 ] as const;
 export type ListingStatus = (typeof LISTING_STATUSES)[number];
 
 /** Statuses the public is allowed to see. */
-export const PUBLIC_LISTING_STATUS: ListingStatus = "active";
+export const PUBLIC_LISTING_STATUSES: ListingStatus[] = [
+  "active",
+  "not-for-sale",
+];
 
 export interface IListingAddress {
   line1?: string;
@@ -66,6 +72,11 @@ export interface IListing {
   interior: IListingEntry[];
   roomTypes: string[];
   images: string[];
+  /**
+   * Public URL of an uploaded interactive 3D model (glTF/.glb). Optional — a
+   * design is valid without one.
+   */
+  model?: string;
   /** Other listings that are similar, seeded or set by a teacher. */
   similar: Types.ObjectId[];
   status: ListingStatus;
@@ -125,6 +136,7 @@ const listingSchema = new Schema<IListing, ListingModel>(
     interior: { type: [entrySchema], default: [] },
     roomTypes: { type: [String], default: [] },
     images: { type: [String], default: [] },
+    model: { type: String, trim: true, maxlength: 500 },
     similar: [{ type: Schema.Types.ObjectId, ref: "Listing" }],
     status: {
       type: String,

@@ -15,11 +15,12 @@ import TeamAvatar from "@/components/team-avatar";
 import { buttonVariants } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
+import { isStaff } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
-  adminApi,
   formatCost,
   listingsApi,
+  moderationApi,
   type BrowseResult,
 } from "@/lib/listings";
 import { useAsyncData } from "@/lib/use-async-data";
@@ -89,15 +90,15 @@ function SectionCard({
 
 export default function Dashboard() {
   const { user } = useAuth();
-  const isAdmin = user?.role === "admin";
+  const staff = isStaff(user);
 
   const mine = useAsyncData(() => listingsApi.mine(), []);
   const pendingQueue = useAsyncData<BrowseResult | null>(
     () =>
-      isAdmin
-        ? adminApi.queue({ status: "pending", limit: 1 })
+      staff
+        ? moderationApi.queue({ status: "pending", limit: 1 })
         : Promise.resolve(null),
-    [isAdmin],
+    [staff],
   );
 
   if (!user) return null;
@@ -219,18 +220,18 @@ export default function Dashboard() {
             </div>
 
             <a
-              href={isAdmin ? "#/dashboard/teams" : "#/dashboard/team"}
+              href={staff ? "#/dashboard/teams" : "#/dashboard/team"}
               className={cn(
                 buttonVariants({ variant: "outline", size: "sm" }),
                 "mt-3",
               )}
             >
               <UsersRound />
-              {isAdmin ? "Manage teams" : "View team"}
+              {staff ? "Manage teams" : "View team"}
             </a>
           </SectionCard>
 
-          {isAdmin && (
+          {staff && (
             <SectionCard title="Moderation">
               {pendingQueue.loading ? (
                 <Skeleton className="h-6 w-44" />

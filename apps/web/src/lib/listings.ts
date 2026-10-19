@@ -1,6 +1,7 @@
 import { request } from "./api";
 
-export type ListingStatus = "draft" | "pending" | "active" | "rejected";
+export type ListingStatus =
+  "draft" | "pending" | "active" | "not-for-sale" | "rejected";
 export type SortOption = "newest" | "cost-asc" | "cost-desc" | "sqft-desc";
 
 export interface ListingAddress {
@@ -74,6 +75,8 @@ export interface Listing {
   interior: ListingEntry[];
   roomTypes: string[];
   images: string[];
+  /** Public URL of an uploaded interactive 3D model, if the design has one. */
+  model?: string;
   /** An id normally, or a summary object once the API populates it. */
   similar?: Array<string | ListingSummary>;
   status: ListingStatus;
@@ -120,6 +123,8 @@ export interface ListingInput {
   interior: ListingEntry[];
   roomTypes: string[];
   images: string[];
+  /** Public URL of an uploaded 3D model; omit or clear to remove it. */
+  model?: string;
   status?: "draft" | "pending";
 }
 
@@ -184,29 +189,39 @@ export const uploadApi = {
     });
   },
 
+  /** Uploads a single interactive 3D model (a .glb or .gltf file). */
+  model: (file: File) => {
+    const body = new FormData();
+    body.append("model", file);
+    return request<{ file: UploadedImage }>("/api/uploads/model", {
+      method: "POST",
+      body,
+    });
+  },
+
   remove: (name: string) =>
     request<void>(`/api/uploads/${encodeURIComponent(name)}`, {
       method: "DELETE",
     }),
 };
 
-export interface AdminQueueParams {
+export interface ModerationQueueParams {
   status?: ListingStatus;
   page?: number;
   limit?: number;
 }
 
-export const adminApi = {
-  queue: (params: AdminQueueParams = {}) =>
-    request<BrowseResult>(`/api/admin/listings${toSearchParams(params)}`),
+export const moderationApi = {
+  queue: (params: ModerationQueueParams = {}) =>
+    request<BrowseResult>(`/api/moderation/listings${toSearchParams(params)}`),
 
   approve: (id: string) =>
-    request<{ listing: Listing }>(`/api/admin/listings/${id}/approve`, {
+    request<{ listing: Listing }>(`/api/moderation/listings/${id}/approve`, {
       method: "POST",
     }),
 
   reject: (id: string, reason: string) =>
-    request<{ listing: Listing }>(`/api/admin/listings/${id}/reject`, {
+    request<{ listing: Listing }>(`/api/moderation/listings/${id}/reject`, {
       method: "POST",
       body: JSON.stringify({ reason }),
     }),
@@ -216,14 +231,8 @@ export const LISTING_STATUS_LABELS: Record<ListingStatus, string> = {
   draft: "Draft",
   pending: "Pending review",
   active: "Live",
+  "not-for-sale": "Not for sale",
   rejected: "Rejected",
-};
-
-export const SORT_LABELS: Record<SortOption, string> = {
-  newest: "Newest first",
-  "cost-asc": "Cost: low to high",
-  "cost-desc": "Cost: high to low",
-  "sqft-desc": "Largest first",
 };
 
 export interface OwnerTeam {

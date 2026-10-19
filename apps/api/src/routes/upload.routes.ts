@@ -8,6 +8,8 @@ import {
   isSafeFilename,
   MAX_IMAGE_BYTES,
   MAX_IMAGES,
+  MAX_MODEL_BYTES,
+  modelUpload,
   UPLOAD_DIR,
   uploadUrl,
 } from "../lib/uploads.js";
@@ -27,6 +29,14 @@ function messageFor(error: unknown): string {
   }
   if (error instanceof Error) return error.message;
   return "Could not upload the images";
+}
+
+function modelMessageFor(error: unknown): string {
+  if (error instanceof multer.MulterError && error.code === "LIMIT_FILE_SIZE") {
+    return `The 3D model must be ${MAX_MODEL_BYTES / (1024 * 1024)} MB or smaller`;
+  }
+  if (error instanceof Error) return error.message;
+  return "Could not upload the 3D model";
 }
 
 /** Accepts multipart/form-data with up to 15 images in the "images" field. */
@@ -49,6 +59,30 @@ uploadRouter.post("/", (req, res, next) => {
         name: file.filename,
         size: file.size,
       })),
+    });
+  });
+});
+
+/** Accepts multipart/form-data with a single 3D model in the "model" field. */
+uploadRouter.post("/model", (req, res, next) => {
+  modelUpload.single("model")(req, res, (error: unknown) => {
+    if (error) {
+      next(new HttpError(400, modelMessageFor(error)));
+      return;
+    }
+
+    const file = req.file;
+    if (!file) {
+      next(new HttpError(400, "No 3D model was uploaded"));
+      return;
+    }
+
+    res.status(201).json({
+      file: {
+        url: uploadUrl(file.filename),
+        name: file.filename,
+        size: file.size,
+      },
     });
   });
 });

@@ -25,7 +25,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import {
-  adminApi,
+  moderationApi,
   formatCost,
   formatDate,
   LISTING_STATUS_LABELS,
@@ -59,7 +59,7 @@ export default function Moderation() {
   const [savingReject, setSavingReject] = useState(false);
 
   const { data, loading, error } = useAsyncData(
-    () => adminApi.queue({ status, limit: 50 }),
+    () => moderationApi.queue({ status, limit: 50 }),
     [status, version],
   );
 
@@ -69,7 +69,7 @@ export default function Moderation() {
   async function approve(listing: Listing) {
     setBusyId(listing._id);
     try {
-      await adminApi.approve(listing._id);
+      await moderationApi.approve(listing._id);
       toast.success(`“${listing.name}” is now live.`);
       reload();
     } catch (error) {
@@ -98,7 +98,7 @@ export default function Moderation() {
 
     setSavingReject(true);
     try {
-      await adminApi.reject(rejecting._id, value);
+      await moderationApi.reject(rejecting._id, value);
       toast.success(`“${rejecting.name}” was rejected.`);
       setRejecting(null);
       reload();
