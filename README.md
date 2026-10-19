@@ -9,7 +9,7 @@ reviews it before it goes live.
 
 ### Apps and Packages
 
-- `web`: a [React 19](https://react.dev) + [Vite](https://vite.dev) + [Tailwind CSS 4](https://tailwindcss.com) app with [shadcn/ui](https://ui.shadcn.com) components — browse as the main page (`#/`), design detail (`#/listings/:slug`), a landing hero (`#/home`), auth (`#/login`, `#/signup`), and a private dashboard (`#/dashboard`) where teams submit designs and staff moderate them, manage teams, and admins manage accounts
+- `web`: a [React 19](https://react.dev) + [Vite](https://vite.dev) + [Tailwind CSS 4](https://tailwindcss.com) app with [shadcn/ui](https://ui.shadcn.com) components — browse as the main page (`#/`), design detail (`#/listings/:slug`), auth (`#/login`, `#/signup`), and a private dashboard (`#/dashboard`) where teams submit designs and staff moderate them, manage teams, and admins manage accounts
 - `api`: an [Express 5](https://expressjs.com) API with [Mongoose](https://mongoosejs.com) (MongoDB), JWT auth in httpOnly cookies, bcrypt password hashing, and `multer` file uploads
 - `@repo/ui`: a stub component and utility library
 - `@repo/eslint-config`: shared ESLint configuration
@@ -249,7 +249,6 @@ query string, which makes a filtered list easy to share.
 | `#/listings`                      | Browse; see the query parameters below                 |
 | `#/listings/:slug`                | Design detail: gallery, specs, highlights, rooms, maps |
 | `#/calculator`                    | Mortgage calculator; `?price=&tax=` prefill the form   |
-| `#/home`                          | Landing hero: search and featured designs              |
 | `#/login`, `#/signup`             | Auth                                                   |
 | `#/dashboard`                     | Signed-in overview: your counts and recent designs     |
 | `#/dashboard/listings`            | Your team's designs, in every status                   |

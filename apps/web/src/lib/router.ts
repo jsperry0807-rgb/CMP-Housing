@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 export type RouteName =
-  | "home"
   | "login"
   | "signup"
   | "dashboard"
@@ -44,8 +43,6 @@ export function parseRoute(hash: string): RouteState {
   const [first, second, third, fourth] = segments;
 
   switch (first) {
-    case "home":
-      return { name: "home", query };
     case "login":
       return { name: "login", query };
     case "signup":

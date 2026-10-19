@@ -6,7 +6,6 @@ import { useAuth } from "@/lib/auth";
 import { isDashboardRoute, navigate, parseRoute, useRoute } from "@/lib/router";
 import Browse from "@/pages/browse";
 import Dashboard from "@/pages/dashboard";
-import Home from "@/pages/home";
 import ListingDetail from "@/pages/listing-detail";
 import ListingForm from "@/pages/listing-form";
 import Login from "@/pages/login";
@@ -76,12 +75,6 @@ export default function App() {
       return isStaff(user) ? <Moderation /> : <FullPageLoader />;
     case "users":
       return isAdmin(user) ? <Users /> : <FullPageLoader />;
-    case "home":
-      return (
-        <SiteLayout>
-          <Home />
-        </SiteLayout>
-      );
     case "browse":
       return (
         <SiteLayout>

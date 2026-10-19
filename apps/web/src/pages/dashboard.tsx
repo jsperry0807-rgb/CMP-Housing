@@ -272,7 +272,7 @@ export default function Dashboard() {
                 Browse all designs
               </a>
               <a
-                href="#/home"
+                href="#/"
                 className={cn(
                   buttonVariants({ variant: "outline", size: "lg" }),
                   "justify-start",
