@@ -1,0 +1,14 @@
+node_modules
+**/node_modules
+**/dist
+**/dist-ssr
+.turbo
+.git
+.env
+.env.*
+apps/api/.env
+apps/api/uploads
+apps/api/seed-images/*
+!apps/api/seed-images/README.md
+*.log
+.DS_Store

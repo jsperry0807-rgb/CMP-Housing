@@ -3,7 +3,10 @@
 # One service: builds the web app and runs the API, which also serves the
 # built site (same origin, so the auth cookie needs no cross-origin setup).
 # Uploads are stored in MongoDB (GridFS), so no volume is needed.
-# Full walkthrough in DEPLOYMENT.md.
+#
+# The install phase is overridden via NIXPACKS_INSTALL_CMD (see DEPLOYMENT.md)
+# so Railway uses pnpm 11.24.0 instead of its default, which misreads the v9
+# lockfile. Full walkthrough in DEPLOYMENT.md.
 [build]
 builder = "nixpacks"
 buildCommand = "corepack enable && pnpm install --frozen-lockfile && turbo run build --filter=api --filter=web"

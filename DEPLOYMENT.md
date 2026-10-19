@@ -42,7 +42,6 @@ The API reads these environment variables (see `apps/api/src/env.ts`):
 | `WEB_ORIGIN`            | The site's public URL — allowed to call the API with credentials.                    |
 | `JWT_EXPIRES_IN`        | Optional, defaults to `7d`.                                                          |
 | `COOKIE_MAX_AGE_MS`     | Optional, defaults to one week.                                                      |
-| `NIXPACKS_NODE_VERSION` | `24`, so the build uses Node 24 (matches `engines.node`).                            |
 
 ## 2. Push to GitHub
 
@@ -59,14 +58,18 @@ git push -u origin main
    Railway reads [`railway.toml`](./railway.toml) for the build/start commands
    and health check.
 2. Set the service's **Root Directory** to the repo root (the default). The
-   build command runs there.
+   build runs there.
+
+   Railway auto-detects the `Dockerfile` in the repo root and builds with
+   Node 24 + the pnpm pinned by `packageManager` (`11.24.0`), so you do **not**
+   need the `NIXPACKS_*` variables below — they are only a fallback if you
+   delete the Dockerfile and build with nixpacks instead.
 3. Open the service's **Variables** tab and add:
 
    - `MONGODB_URI` — your Atlas connection string
    - `NODE_ENV` — `production`
    - `JWT_SECRET` — a long random value (e.g. `openssl rand -base64 32`)
    - `WEB_ORIGIN` — your service URL (set this after step 5)
-   - `NIXPACKS_NODE_VERSION` — `24`
 
    `PORT` is injected by Railway, so don't set it.
 
@@ -180,6 +183,7 @@ placeholder image URLs.
   connection string and that Network Access allows connections.
 - **Login doesn't stick** — `WEB_ORIGIN` doesn't match the URL you're browsing
   from, or the cookie is being blocked. Set `WEB_ORIGIN` to the exact public URL.
+- **`pnpm install --frozen-lockfile` fails with "lockfile is not up to date" for `@google/model-viewer` / `three`** — this should not happen with the `Dockerfile` (it pins Node 24 + pnpm 11.24.0). If you see it, Railway is building with nixpacks instead of the Dockerfile: make sure `Dockerfile` is committed and pushed, then **clear the build cache** (service → Settings → Clear Build Cache) and redeploy. As a fallback without the Dockerfile, set `NIXPACKS_PNPM_VERSION=11.24.0` and `NIXPACKS_INSTALL_CMD=corepack enable && pnpm install --frozen-lockfile`.
 - **`/api/...` returns the HTML page instead of JSON** — that means the built
   site was served for an API path, which shouldn't happen (API routes are
   matched first). Check the service logs.
